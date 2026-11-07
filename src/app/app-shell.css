@@ -1,0 +1,6 @@
+.site-header { border-bottom: 1px solid var(--line); }
+.header-inner { width: var(--content-width); margin: auto; min-height: 67px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.brand-mark { color: var(--accent); margin-right: .35rem; }
+.header-label, .site-footer { color: var(--muted); font-size: .82rem; }
+.site-footer { width: var(--content-width); margin: 3rem auto 0; border-top: 1px solid var(--line); padding: 1.25rem 0; font-family: var(--mono); letter-spacing: .08em; }
+.site-footer span { color: var(--accent); }

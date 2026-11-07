@@ -1,0 +1,30 @@
+{
+  "name": "fcgames",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "check": "jingchuanchu check && tsc --noEmit",
+    "build": "npm run check && vite build",
+    "preview": "vite preview",
+    "generate": "jingchuanchu generate",
+    "test": "node --experimental-strip-types --test"
+  },
+  "dependencies": {
+    "@xiaobaibaifqy/jingchuanchu-app": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-app-0.5.0.tgz",
+    "@xiaobaibaifqy/jingchuanchu-renderer-2d": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-renderer-2d-0.5.0.tgz",
+    "@xiaobaibaifqy/jingchuanchu-core": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-core-0.5.0.tgz",
+    "@xiaobaibaifqy/jingchuanchu-ecs": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-ecs-0.5.0.tgz",
+    "@xiaobaibaifqy/jingchuanchu-browser": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-browser-0.5.0.tgz",
+    "@xiaobaibaifqy/jingchuanchu-input": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-input-0.5.0.tgz",
+    "@xiaobaibaifqy/jingchuanchu-assets": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-assets-0.5.0.tgz"
+  },
+  "devDependencies": {
+    "@xiaobaibaifqy/jingchuanchu-tooling": "file:vendor/jingchuanchu-0.5.0/xiaobaibaifqy-jingchuanchu-tooling-0.5.0.tgz",
+    "typescript": "5.9.3",
+    "vite": "7.3.7"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

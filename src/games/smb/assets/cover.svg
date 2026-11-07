@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 128" shape-rendering="crispEdges">
+  <path fill="#526bd3" d="M0 0h256v128H0z"/>
+  <path fill="#6c84e6" d="M0 76h256v38H0z"/>
+  <path fill="#fff1d6" d="M23 30h9v-4h17v4h9v8H23zm151-12h11v-5h17v5h10v8h-38z"/>
+  <path fill="#347961" d="M0 99h13v-8h11v-8h13v-8h12v8h11v8h12v8h14v13H0zm155 5h12v-9h12v-8h18v8h14v9h45v8H155z"/>
+  <path fill="#273c38" d="M0 109h256v19H0z"/>
+  <path fill="#b55740" d="M0 113h256v15H0z"/>
+  <path fill="#ed8b54" d="M0 113h256v3H0zm0 10h256v2H0z"/>
+  <path fill="#237447" d="M185 80h32v29h-32zm-3-8h38v9h-38z"/>
+  <path fill="#72c252" d="M185 72h7v9h-7zm3 11h5v26h-5zm8-11h3v9h-3z"/>
+  <path fill="#e8a045" d="M110 46h45v16h-45z"/>
+  <path fill="#87503c" d="M110 60h45v2h-45zm14-14h2v16h-2zm15 0h2v16h-2z"/>
+  <path fill="#ffce65" d="M127 46h11v14h-11z"/>
+  <path fill="#87503c" d="M129 48h6v2h2v4h-3v2h-2v-4h3v-2h-6zm3 9h2v2h-2z"/>
+  <path fill="#be392c" d="M77 54h12v3h5v3H75v-4h2zm0 12h14v11H76v-4h-5v-5h6z"/>
+  <path fill="#ffd294" d="M79 60h12v6H79zm11 2h4v3h-4zm-22 5h4v5h-4zm22 6h6v4h-6z"/>
+  <path fill="#3c2d35" d="M80 60h2v4h-2zm8 0h2v2h-2zM72 78h7v4h-9v-3zm14 1h8v4h-8z"/>
+  <path fill="#293e81" d="M81 67h5v7h5v5H77v-4h4z"/>
+  <path fill="#efba58" d="M152 81h6v11h-6zm14-8h6v11h-6z"/>
+  <path fill="#fff1ad" d="M153 82h2v8h-2zm14-8h2v8h-2z"/>
+</svg>

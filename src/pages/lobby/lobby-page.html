@@ -1,0 +1,30 @@
+<main class="lobby">
+  <div class="intro">
+    <p class="eyebrow">FC ARCADE</p>
+    <h1>红白机游戏厅<span>.</span></h1>
+    <p class="subtitle">选择一款经典游戏，开始游玩。</p>
+  </div>
+  <section aria-labelledby="games-title">
+    <div class="section-heading">
+      <h2 id="games-title">游戏目录</h2>
+      <span>{{ games.length }} 款可玩</span>
+    </div>
+    <div class="catalog">
+      <template each="game of games" key="game.id">
+        <article class="game-card">
+          <div class="cover">
+            <img :src="game.cover" alt="" width="512" height="256">
+            <span class="card-index">FC / {{ game.number }}</span>
+          </div>
+          <div class="card-body">
+            <p class="metadata">{{ game.year }} <span>·</span> {{ game.genre }}</p>
+            <h3>{{ game.title }}</h3>
+            <p class="english-title">{{ game.originalTitle }}</p>
+            <p class="summary">{{ game.summary }}</p>
+            <route-link :to="game.target"><template slot="default">开始游戏 <span aria-hidden="true">→</span></template></route-link>
+          </div>
+        </article>
+      </template>
+    </div>
+  </section>
+</main>

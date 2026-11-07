@@ -1,0 +1,20 @@
+.lobby { width: var(--content-width); margin: auto; }
+.intro { padding: clamp(3rem, 9vw, 7rem) 0 3rem; }
+.eyebrow, .metadata, .english-title, .section-heading span, .card-index { font-family: var(--mono); letter-spacing: .12em; }
+.eyebrow, .metadata span { color: var(--accent); }
+h1 { font-size: clamp(2.2rem, 8vw, 5.4rem); letter-spacing: -.065em; line-height: 1.06; margin: .5rem 0 1rem; }
+h1 span { color: var(--accent); }
+.subtitle, .summary, .english-title, .section-heading span { color: var(--muted); }
+.section-heading { border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 1.15rem; }
+.section-heading h2 { font-size: 1rem; }
+.section-heading span, .metadata, .english-title { font-size: .74rem; }
+.catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 1.15rem; }
+.game-card { background: var(--surface); border: 1px solid var(--line); }
+.cover { position: relative; }
+.cover img { width: 100%; height: auto; display: block; }
+.card-index { position: absolute; top: .75rem; left: .75rem; font-size: .72rem; color: #fff; background: #191b31; padding: .25rem .5rem; }
+.card-body { padding: 1.15rem; }
+.card-body h3 { margin: .4rem 0 0; font-size: 1.55rem; }
+.metadata { margin: 0; color: var(--muted); }
+.english-title { margin: .35rem 0 1rem; }
+.summary { line-height: 1.6; }

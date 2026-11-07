@@ -1,0 +1,26 @@
+:root {
+  color-scheme: dark;
+  --text: #f7f0df;
+  --muted: #bbb7c5;
+  --surface: #22243a;
+  --line: #3b3c56;
+  --accent: #ffcf65;
+  --mono: ui-monospace, Consolas, monospace;
+  --content-width: min(100% - 2rem, 1040px);
+  font-family: system-ui, "Microsoft YaHei", sans-serif;
+  background: #17182a;
+  color: var(--text);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: var(--accent); }
+button { font: inherit; color: inherit; }
+button:not(:disabled) { cursor: pointer; }
+button:disabled { opacity: .45; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.header-inner a { color: var(--text); text-decoration: none; font-family: var(--mono); font-weight: 900; letter-spacing: .12em; }
+.card-body a { display: inline-flex; align-items: center; gap: 1rem; color: #1b1823; background: var(--accent); padding: .55rem .85rem; text-decoration: none; font-weight: 700; }
+.card-body a:hover { background: #fff0b1; }
+.play-top a, .panel a { font-size: .9rem; text-underline-offset: .22em; }
+game-canvas canvas { image-rendering: pixelated; }
+.panel a { display: inline-block; padding: .3rem .45rem; }
