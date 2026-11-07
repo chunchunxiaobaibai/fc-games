@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { moveBody } from '../src/games/smb/rules/collision.ts';
+import { captureSmbFrame, interpolateSmbFrame } from '../src/games/smb/smb-frame.ts';
 import { SIMULATION_HZ, SmbSession } from '../src/games/smb/smb-session.ts';
 
 const dt = 1 / SIMULATION_HZ;
@@ -37,6 +38,58 @@ test('holding jump rises higher than tapping, and sprint increases speed', () =>
   }
   assert.ok(long.player.y < short.player.y - 20);
   assert.ok(long.player.vx > short.player.vx);
+});
+
+test('fall accelerates until landing and a jump just before landing is buffered', () => {
+  const game = new SmbSession();
+  Object.assign(game.player, { y: 100, grounded: false });
+  game.step(dt, idle);
+  const firstSpeed = game.player.vy;
+  game.step(dt, idle);
+  assert.ok(game.player.vy > firstSpeed);
+  Object.assign(game.player, { y: 192, vy: 100 });
+  game.step(dt, { ...idle, jumpPressed: true, jump: true });
+  assert.equal(game.player.grounded, true);
+  assert.equal(game.player.y + game.player.h, 208);
+  game.step(dt, { ...idle, jump: true });
+  assert.ok(game.player.vy < 0);
+});
+
+test('growth waits for headroom, then animates without moving the feet', () => {
+  const game = new SmbSession();
+  game.map.surface.tiles.push({ x: 30, y: 170, w: 16, h: 16, kind: 'stone' });
+  game.power = 'big';
+  game.step(dt, idle);
+  assert.equal(game.player.h, 15);
+  assert.equal(game.visualHeight, 15);
+  stand(game, 49);
+  game.step(dt, idle);
+  assert.equal(game.player.h, 26);
+  assert.equal(game.player.y + game.player.h, 208);
+  game.step(dt, idle);
+  assert.ok(game.visualHeight > 15 && game.visualHeight < 26);
+  for (let i = 0; i < 10; i++) game.step(dt, idle);
+  assert.equal(game.visualHeight, 26);
+  assert.equal(game.player.y + game.player.h, 208);
+});
+
+test('player and camera interpolate together, while a pipe jump snaps to its destination', () => {
+  const state = new SmbSession();
+  stand(state, 920, 160);
+  state.camera = 810;
+  const previous = captureSmbFrame(state);
+  state.player.x += 4;
+  state.camera += 4;
+  const view = interpolateSmbFrame({ state, previous, alpha: 0.5 });
+  assert.equal(view.playerX, 922);
+  assert.equal(view.playerX - view.camera, 110);
+  assert.equal(view.feet, 160);
+  state.step(dt, { ...idle, downPressed: true });
+  assert.equal(state.region, 'bonus');
+  const warped = interpolateSmbFrame({ state, previous, alpha: 0.5 });
+  assert.equal(warped.playerX, state.player.x);
+  assert.equal(warped.camera, 0);
+  assert.equal(warped.feet, 208);
 });
 
 test('question block pays once, mushroom grows the player and larger player can break a brick', () => {
@@ -149,7 +202,7 @@ test('World 1-1 is traversable using only sprint and jumps, and finishes once', 
   const game = new SmbSession();
   const jumpTargets = [
     350, 390, 480, 550, 658, 692, 801, 838, 960, 1052, 1250, 1334,
-    1530, 1820, 1960, 2120, 2280, 2320, 2398, 2597, 2790, 2815, 2933, 3030, 3080,
+    1530, 1820, 1960, 2120, 2240, 2320, 2398, 2597, 2775, 2815, 2933, 3030, 3080,
   ];
   let hold = 0;
   for (let i = 0; i < 1500 && game.hud.phase !== 'cleared'; i++) {

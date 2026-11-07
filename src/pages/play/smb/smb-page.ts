@@ -3,18 +3,17 @@ import {
   type GameCanvasHandle, type GameCanvasOptions,
 } from '@xiaobaibaifqy/jingchuanchu-app/application';
 import { createSmbScene } from '../../../games/smb/smb-scene.js';
-import { SmbRenderer } from '../../../games/smb/smb-renderer.js';
+import { SmbRenderer } from './smb-renderer.js';
 import { InitialHud, SIMULATION_HZ } from '../../../games/smb/smb-session.ts';
 import { VIEW_HEIGHT, VIEW_WIDTH } from '../../../games/smb/levels/world-1-1.ts';
 
 const options: GameCanvasOptions = Object.freeze({
   width: VIEW_WIDTH,
   height: VIEW_HEIGHT,
-  maxPixelRatio: 1,
   clock: { tickRate: SIMULATION_HZ },
   background: '#6077d8',
-  createRenderer: (canvas: HTMLCanvasElement, width: number, height: number, ratio: number) =>
-    new SmbRenderer(canvas, width, height, ratio),
+  createRenderer: (canvas: HTMLCanvasElement, width: number, height: number) =>
+    new SmbRenderer(canvas, width, height),
 });
 
 export const SmbPage = definePage({

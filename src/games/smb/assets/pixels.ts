@@ -38,3 +38,16 @@ export const palette: Record<string, string> = {
   r: '#c1392b', k: '#432830', s: '#ffd494', b: '#29468b', y: '#ffcb59',
   d: '#a85b42', w: '#fff4db', g: '#267c52', l: '#8bc759',
 };
+
+// Keep a common frame size and baseline while the legs change pose.
+export const playerWalk = [
+  ...pixels.player.slice(0, 12),
+  '..bbbb......', '.kk.bbbb....', 'kkk...kkkk..',
+];
+
+export const playerAir = [
+  ...pixels.player.slice(0, 12),
+  '.bbbb.bbb...', '.kk....kk...', '.......kkk..',
+];
+
+export const firePalette: Record<string, string> = { ...palette, r: '#fff0cd', b: '#c13d36' };

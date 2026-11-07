@@ -32,6 +32,11 @@ export const InitialHud: Hud = { score: 0, coins: 0, lives: 3, time: 400, phase:
 
 export const SIMULATION_HZ = 60;
 const GRAVITY = 850;
+const FALL_GRAVITY = 1050;
+const MAX_FALL_SPEED = 460;
+const JUMP_BUFFER = 0.1;
+const COYOTE_TIME = 0.065;
+const RESIZE_SPEED = 95;
 const SHELL_SPEED = 170;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -55,9 +60,13 @@ export class SmbSession {
   elapsed = 0;
   invulnerable = 0;
   flagY = 53;
+  visualHeight = this.player.h;
   private remaining = 400;
   private returnX = 0;
   private fireCooldown = 0;
+  private jumpBuffer = 0;
+  private coyoteTime = 0;
+  private canCutJump = false;
 
   private readonly sound: (key: Sound) => void;
 
@@ -69,6 +78,8 @@ export class SmbSession {
   step(dt: number, input: Input) {
     if (this.hud.phase === 'lost' || this.hud.phase === 'cleared') return;
     this.elapsed += dt;
+    const resizeStep = RESIZE_SPEED * dt;
+    this.visualHeight += clamp(this.player.h - this.visualHeight, -resizeStep, resizeStep);
     if (this.hud.phase !== 'playing') {
       this.finishFlag(dt);
       return;
@@ -88,17 +99,24 @@ export class SmbSession {
     const target = input.direction * (input.sprint ? 155 : 98);
     const acceleration = (input.direction ? 620 : 740) * dt;
     player.vx += clamp(target - player.vx, -acceleration, acceleration);
-    if (input.jumpPressed && player.grounded) {
+    this.jumpBuffer = input.jumpPressed ? JUMP_BUFFER : Math.max(0, this.jumpBuffer - dt);
+    this.coyoteTime = player.grounded ? COYOTE_TIME : Math.max(0, this.coyoteTime - dt);
+    if (this.jumpBuffer > 0 && this.coyoteTime > 0) {
       player.vy = input.sprint ? -365 : -327;
+      this.jumpBuffer = this.coyoteTime = 0;
+      this.canCutJump = true;
       this.sound('jump');
-    } else if (!input.jump && player.vy < -126) {
+    } else if (this.canCutJump && !input.jump && player.vy < -126) {
       player.vy = -126;
+      this.canCutJump = false;
     }
     if (input.firePressed && this.power === 'fire' && this.fireCooldown === 0) this.shoot();
 
     const oldBottom = player.y + player.h;
-    player.vy = Math.min(410, player.vy + GRAVITY * dt);
+    const gravity = player.vy < 0 ? GRAVITY : FALL_GRAVITY;
+    player.vy = Math.min(MAX_FALL_SPEED, player.vy + gravity * dt);
     const falling = player.vy > 0;
+    if (falling) this.canCutJump = false;
     const contact = moveBody(player, tiles, dt);
     player.x = clamp(player.x, 0, this.map[this.region].width - player.w);
     if (contact.ceiling) this.hitBlock(contact.ceiling);
@@ -130,8 +148,11 @@ export class SmbSession {
     const { player } = this;
     const height = this.power === 'small' ? 15 : 26;
     if (height === player.h) return;
-    const candidate = { ...player, y: player.y + player.h - height, h: height };
-    if (height < player.h || !tiles.some((tile) => overlaps(candidate, tile))) Object.assign(player, candidate);
+    const candidate = { x: player.x, y: player.y + player.h - height, w: player.w, h: height };
+    if (height < player.h || !tiles.some((tile) => overlaps(candidate, tile))) {
+      player.y = candidate.y;
+      player.h = height;
+    }
   }
 
   private hitBlock(tile: Tile) {
@@ -230,6 +251,8 @@ export class SmbSession {
         player.y = enemy.y - player.h;
         player.vy = -205;
         player.grounded = false;
+        this.coyoteTime = 0;
+        this.canCutJump = false;
         if (enemy.kind === 'koopa') {
           enemy.kind = 'shell';
           enemy.y += enemy.h - 12;
@@ -309,6 +332,8 @@ export class SmbSession {
     this.player.x = destination === 'bonus' ? 24 : this.returnX;
     this.player.y = GROUND_Y - this.player.h;
     this.player.vx = this.player.vy = 0;
+    this.jumpBuffer = this.coyoteTime = 0;
+    this.canCutJump = false;
     this.camera = 0;
     this.updateCamera();
     this.sound('warp');

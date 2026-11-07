@@ -1,35 +1,65 @@
-import { component, type World } from '@xiaobaibaifqy/jingchuanchu-ecs';
+import type { World } from '@xiaobaibaifqy/jingchuanchu-ecs';
 import { Canvas2D } from '@xiaobaibaifqy/jingchuanchu-renderer-2d';
-import { pixels, palette } from './assets/pixels.js';
-import { CASTLE_X, FLAG_X, GROUND_Y, VIEW_WIDTH } from './levels/world-1-1.ts';
-import type { Tile } from './levels/world-1-1.ts';
-import type { SmbSession } from './smb-session.ts';
+import { firePalette, pixels, palette, playerAir, playerWalk } from '../../../games/smb/assets/pixels.js';
+import { CASTLE_X, FLAG_X, GROUND_Y, VIEW_WIDTH } from '../../../games/smb/levels/world-1-1.ts';
+import type { Tile } from '../../../games/smb/levels/world-1-1.ts';
+import { interpolateSmbFrame, SmbFrame } from '../../../games/smb/smb-frame.ts';
 
-export const SmbFrame = component<SmbSession>('smb-frame');
+const RASTER_SCALE = 2;
+const snap = (value: number) => Math.round(value * RASTER_SCALE) / RASTER_SCALE;
 
 export class SmbRenderer extends Canvas2D {
+  private readonly sprites = new Map<readonly string[], HTMLCanvasElement>();
+  private readonly fireSprites = new Map<readonly string[], HTMLCanvasElement>();
+
+  override resize(width = this.width, height = this.height) {
+    super.resize(width, height, RASTER_SCALE);
+    this.context.imageSmoothingEnabled = false;
+  }
+
+  private spriteImage(sprite: readonly string[], fire: boolean) {
+    const cache = fire ? this.fireSprites : this.sprites;
+    const cached = cache.get(sprite);
+    if (cached) return cached;
+    const image = this.canvas.ownerDocument.createElement('canvas');
+    image.width = sprite[0]!.length;
+    image.height = sprite.length;
+    const ctx = image.getContext('2d')!;
+    const colors = fire ? firePalette : palette;
+    for (const [y, row] of sprite.entries()) {
+      for (let x = 0; x < row.length; x++) {
+        const color = colors[row[x]!];
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    cache.set(sprite, image);
+    return image;
+  }
+
   override drawWorld(world: World) {
     for (const entity of world.query(SmbFrame)) {
-      const state = world.require(entity, SmbFrame);
+      const frame = world.require(entity, SmbFrame);
+      const { state } = frame;
       const ctx = this.context;
-      const camera = Math.floor(state.camera);
+      const view = interpolateSmbFrame(frame);
+      const { camera, elapsed } = view;
       const box = (color: string, x: number, y: number, w: number, h: number) => {
         ctx.fillStyle = color;
-        ctx.fillRect(Math.round(x), Math.round(y), w, h);
+        ctx.fillRect(snap(x), snap(y), w, h);
       };
-      const art = (sprite: readonly string[], x: number, y: number, w: number, h: number, flip = false, colors = palette) => {
-        const columns = sprite[0]!.length;
-        for (let row = 0; row < sprite.length; row++) {
-          for (let col = 0; col < columns; col++) {
-            const color = colors[sprite[row]![col]!];
-            if (!color) continue;
-            const column = flip ? columns - col - 1 : col;
-            const left = Math.floor(column * w / columns);
-            const top = Math.floor(row * h / sprite.length);
-            box(color, x + left, y + top, Math.ceil((column + 1) * w / columns) - left,
-              Math.ceil((row + 1) * h / sprite.length) - top);
-          }
+      const art = (sprite: readonly string[], x: number, y: number, w: number, h: number, flip = false, fire = false) => {
+        const image = this.spriteImage(sprite, fire);
+        if (!flip) {
+          ctx.drawImage(image, snap(x), snap(y), w, h);
+          return;
         }
+        ctx.save();
+        ctx.translate(snap(x) + w, snap(y));
+        ctx.scale(-1, 1);
+        ctx.drawImage(image, 0, 0, w, h);
+        ctx.restore();
       };
       const visible = (x: number, w: number) => x + w >= camera && x <= camera + VIEW_WIDTH;
 
@@ -107,7 +137,7 @@ export class SmbRenderer extends Canvas2D {
         }
         if (tile.kind === 'question') {
           box('#85463c', x, y, 16, 16);
-          box(Math.floor(state.elapsed * 5) % 3 === 0 ? '#ffd577' : '#efaa4f', x + 1, y + 1, 14, 13);
+          box(Math.floor(elapsed * 5) % 3 === 0 ? '#ffd577' : '#efaa4f', x + 1, y + 1, 14, 13);
           box('#935540', x + 5, y + 3, 6, 2);
           box('#935540', x + 9, y + 5, 2, 2);
           box('#935540', x + 7, y + 7, 4, 2);
@@ -129,39 +159,44 @@ export class SmbRenderer extends Canvas2D {
         const x = FLAG_X - camera;
         box('#f8edd4', x, 46, 2, GROUND_Y - 46 - 16);
         box('#ffd564', x - 2, 43, 6, 5);
-        box('#faf0db', x - 16, state.flagY, 16, 10);
-        box('#31834f', x - 14, state.flagY + 2, 8, 6);
+        box('#faf0db', x - 16, view.flagY, 16, 10);
+        box('#31834f', x - 14, view.flagY + 2, 8, 6);
       }
       for (const coin of state.map[state.region].coins) {
         if (!visible(coin.x, coin.w)) continue;
-        const width = Math.floor(state.elapsed * 10) % 3 === 0 ? 3 : 6;
+        const width = Math.floor(elapsed * 10) % 3 === 0 ? 3 : 6;
         const x = coin.x - camera + (8 - width) / 2;
         box('#d8843c', x, coin.y + 1, width, 10);
         box('#ffdb6d', x + 1, coin.y, width - 1, 10);
       }
       for (const item of state.items[state.region]) {
-        if (!visible(item.x, item.w)) continue;
-        ctx.save();
+        const { x, y } = view.position(item);
+        if (!visible(x, item.w)) continue;
         if (item.emergence > 0) {
+          ctx.save();
           ctx.beginPath();
           ctx.rect(0, 0, VIEW_WIDTH, item.blockTop);
           ctx.clip();
         }
-        art(pixels[item.kind], item.x - camera, item.y, item.w, item.h);
-        ctx.restore();
+        art(pixels[item.kind], x - camera, y, item.w, item.h);
+        if (item.emergence > 0) ctx.restore();
       }
       for (const enemy of state.actors[state.region]) {
-        if (!enemy.dead && visible(enemy.x, enemy.w)) art(pixels[enemy.kind], enemy.x - camera, enemy.y, enemy.w, enemy.h, enemy.vx > 0);
+        if (enemy.dead) continue;
+        const { x, y } = view.position(enemy);
+        if (visible(x, enemy.w)) art(pixels[enemy.kind], x - camera, y, enemy.w, enemy.h, enemy.vx > 0);
       }
       for (const shot of state.shots) {
-        box('#ff9651', shot.x - camera, shot.y, 6, 6);
-        box('#ffe988', shot.x - camera + 1, shot.y + 1, 4, 4);
+        const { x, y } = view.position(shot);
+        box('#ff9651', x - camera, y, 6, 6);
+        box('#ffe988', x - camera + 1, y + 1, 4, 4);
       }
       const p = state.player;
       if (state.hud.phase !== 'cleared' && (!state.invulnerable || Math.floor(state.invulnerable * 15) % 2 === 0)) {
-        const stride = p.grounded && Math.abs(p.vx) > 15 ? Math.floor(state.elapsed * 13) % 2 : 0;
-        const colors = state.power === 'fire' ? { ...palette, r: '#fff0cd', b: '#c13d36' } : palette;
-        art(pixels.player, p.x - camera, p.y - stride, p.w, p.h, state.facing < 0, colors);
+        const walking = Math.abs(p.vx) > 15 && Math.floor(elapsed * 13) % 2 === 1;
+        const pose = p.grounded ? (walking ? playerWalk : pixels.player) : playerAir;
+        const height = snap(view.height);
+        art(pose, view.playerX - camera, snap(view.feet) - height, p.w, height, state.facing < 0, state.power === 'fire');
       }
     }
   }

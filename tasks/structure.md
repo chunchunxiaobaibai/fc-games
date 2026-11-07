@@ -25,11 +25,11 @@ fcgames/
 │   │   ├── game-catalog.ts          # ID、名称、简介、封面、页面加载器
 │   │   ├── lobby/                  # 大厅卡片和进入游戏
 │   │   └── play/
-│   │       └── smb/                # SMB 页面、HUD、暂停与结算界面
+│   │       └── smb/                # SMB 页面、Canvas 渲染、HUD、暂停与结算界面
 │   ├── games/
 │   │   └── smb/
 │   │       ├── smb-scene.ts        # 引擎场景、输入与玩法装配
-│   │       ├── smb-renderer.ts     # 引擎 Canvas2D 渲染适配
+│   │       ├── smb-frame.ts        # 固定步之间的画面插值
 │   │       ├── smb-session.ts      # 本局状态、计时、重开与结算
 │   │       ├── levels/             # 关卡数据、出生点、管道出入口与旗杆
 │   │       ├── rules/              # 移动、碰撞、敌人与道具规则

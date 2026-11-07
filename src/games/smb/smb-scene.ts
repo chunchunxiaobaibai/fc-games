@@ -1,6 +1,6 @@
 import { defineActions, defineGameScene } from '@xiaobaibaifqy/jingchuanchu-app/application';
 import { SmbSounds } from './assets/sounds.js';
-import { SmbFrame } from './smb-renderer.js';
+import { captureSmbFrame, SmbFrame } from './smb-frame.ts';
 import { SmbSession, type Hud } from './smb-session.ts';
 
 const actions = defineActions({
@@ -21,12 +21,21 @@ export function createSmbScene(initialHud: () => Hud, publish: (hud: Hud) => voi
           void context.audio.playEffect(SmbSounds, key);
         }
       });
-      context.world.set(context.create(), SmbFrame, run);
+      const frame = { state: run, previous: captureSmbFrame(run), alpha: 1 };
+      context.world.set(context.create(), SmbFrame, frame);
+      context.addSystem({
+        id: 'smb-render-interpolation',
+        phase: 'render',
+        update({ alpha }) {
+          frame.alpha = alpha;
+        },
+      });
 
       let last: Hud | undefined;
       context.addSystem({
         id: 'smb-fixed-update',
         update({ delta }) {
+          frame.previous = captureSmbFrame(run);
           const { move } = context.actions.axes;
           const { down, fire, jump, sprint } = context.actions.buttons;
           run.step(delta, {
