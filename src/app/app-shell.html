@@ -1,8 +1,11 @@
 <header class="site-header">
   <div class="header-inner">
-    <route-link :to="{ name: 'lobby' }"><template slot="default"><span class="brand-mark" aria-hidden="true">✚</span> FC GAMES</template></route-link>
+    <route-link :to="{ name: 'lobby' }"><template slot="default"><span class="brand-mark" aria-hidden="true"></span><span>FC GAMES</span></template></route-link>
     <span class="header-label">红白机游戏厅</span>
   </div>
 </header>
 <router-outlet></router-outlet>
-<footer class="site-footer">FC GAMES <span>·</span> 经典游戏复刻</footer>
+<footer class="site-footer">
+  <span>FC GAMES <span class="footer-dot">/</span> 经典游戏复刻</span>
+  <span>ARCADE COLLECTION</span>
+</footer>

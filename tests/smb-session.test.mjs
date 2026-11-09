@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { moveBody } from '../src/games/smb/rules/collision.ts';
 import { captureSmbFrame, interpolateSmbFrame } from '../src/games/smb/smb-frame.ts';
+import { World12 } from '../src/games/smb/levels/world-1-2.ts';
 import { SIMULATION_HZ, SmbSession } from '../src/games/smb/smb-session.ts';
 
 const dt = 1 / SIMULATION_HZ;
@@ -38,6 +39,30 @@ test('holding jump rises higher than tapping, and sprint increases speed', () =>
   }
   assert.ok(long.player.y < short.player.y - 20);
   assert.ok(long.player.vx > short.player.vx);
+});
+
+test('ground speed at takeoff makes a running jump higher and farther', () => {
+  const measure = (sprint, approachFrames) => {
+    const game = new SmbSession();
+    for (let i = 0; i < approachFrames; i++) game.step(dt, { ...idle, direction: 1, sprint });
+    const { x, y } = game.player;
+    game.step(dt, { ...idle, direction: 1, sprint, jump: true, jumpPressed: true });
+    const launchSpeed = game.player.vy;
+    let highest = game.player.y;
+    for (let i = 0; i < 120 && !game.player.grounded; i++) {
+      game.step(dt, { ...idle, jump: true });
+      highest = Math.min(highest, game.player.y);
+    }
+    assert.equal(game.player.grounded, true);
+    return { launchSpeed, rise: y - highest, distance: game.player.x - x };
+  };
+  const standing = measure(false, 0);
+  const sprintFromRest = measure(true, 0);
+  const walking = measure(false, 48);
+  const running = measure(true, 48);
+  assert.equal(sprintFromRest.launchSpeed, standing.launchSpeed);
+  assert.ok(running.rise > walking.rise + 8);
+  assert.ok(running.distance > walking.distance + 30);
 });
 
 test('fall accelerates until landing and a jump just before landing is buffered', () => {
@@ -154,9 +179,36 @@ test('a stomp creates a stationary shell that can hit another enemy and return i
   assert.equal(bystander.dead, true);
   assert.ok(target.vx < 0);
   assert.equal(game.hud.lives, 2);
+  assert.equal(game.hud.phase, 'dying');
+  for (let i = 0; i < 180; i++) game.step(dt, idle);
   assert.equal(game.hud.phase, 'lost');
   game.step(dt, idle);
   assert.equal(game.hud.lives, 2);
+});
+
+test('a side hit plays a single death arc before showing the result', () => {
+  const sounds = [];
+  const game = new SmbSession(undefined, (sound) => sounds.push(sound));
+  const [goomba] = game.actors.surface;
+  Object.assign(goomba, { x: 42, y: 194, vx: 0, active: true });
+  game.step(dt, idle);
+  const { x, y } = game.player;
+  const { time } = game.hud;
+  assert.equal(game.hud.phase, 'dying');
+  assert.equal(game.hud.lives, 2);
+  assert.equal(game.hud.failure, '碰到了敌人');
+  const input = { ...idle, direction: 1, sprint: true, jump: true, jumpPressed: true };
+  for (let i = 0; i < 18; i++) game.step(dt, input);
+  assert.ok(game.player.y < y - 50);
+  assert.equal(game.player.x, x);
+  for (let i = 18; i < 60; i++) game.step(dt, input);
+  assert.ok(game.player.y >= 240);
+  assert.equal(game.hud.phase, 'dying');
+  for (let i = 60; i < 181; i++) game.step(dt, input);
+  assert.equal(game.hud.phase, 'lost');
+  assert.equal(game.hud.time, time);
+  assert.equal(game.hud.lives, 2);
+  assert.deepEqual(sounds, ['lose']);
 });
 
 test('warping to the bonus room and back preserves time, coins, size, and used blocks', () => {
@@ -200,24 +252,120 @@ test('a pit costs one life and timeout settles once', () => {
 
 test('World 1-1 is traversable using only sprint and jumps, and finishes once', () => {
   const game = new SmbSession();
-  const jumpTargets = [
-    350, 390, 480, 550, 658, 692, 801, 838, 960, 1052, 1250, 1334,
-    1530, 1820, 1960, 2120, 2240, 2320, 2398, 2597, 2775, 2815, 2933, 3030, 3080,
+  // Each pair is the grounded approach time and the jump hold time, in fixed ticks.
+  const jumps = [
+    [72, 12], [48, 40], [3, 40], [9, 40], [57, 40], [72, 12],
+    [33, 5], [0, 40], [0, 40], [72, 5], [36, 5], [48, 40],
+    [21, 40], [9, 12], [21, 40], [60, 40], [24, 40], [0, 40],
   ];
-  let hold = 0;
-  for (let i = 0; i < 1500 && game.hud.phase !== 'cleared'; i++) {
-    const pressed = game.player.grounded && game.player.x >= jumpTargets[0];
-    if (pressed) {
-      jumpTargets.shift();
-      hold = 40;
+  const run = { ...idle, direction: 1, sprint: true };
+  for (const [approach, hold] of jumps) {
+    for (let frame = 0; frame < approach; frame++) game.step(dt, run);
+    assert.equal(game.player.grounded, true);
+    for (let frame = 0; frame < 78 && game.hud.phase === 'playing'; frame++) {
+      game.step(dt, { ...run, jump: frame < hold, jumpPressed: frame === 0 });
+      if (game.player.grounded) break;
     }
-    game.step(dt, { ...idle, direction: 1, sprint: true, jump: hold > 0, jumpPressed: pressed });
-    hold--;
   }
+  for (let frame = 0; frame < 180 && game.hud.phase !== 'cleared'; frame++) game.step(dt, idle);
   assert.equal(game.hud.phase, 'cleared');
   assert.equal(game.hud.lives, 3);
   assert.ok(game.hud.score > 3000);
   const { score, time } = game.hud;
   game.step(dt, idle);
   assert.deepEqual([game.hud.score, game.hud.time], [score, time]);
+});
+
+test('World 1-2 keeps progress through named pipes and leaves future warp destinations locked', () => {
+  const game = new SmbSession({ score: 1500, coins: 8, lives: 2, power: 'fire' }, undefined, World12);
+  assert.equal(game.region, 'surface');
+  assert.equal(game.player.h, 26);
+  assert.deepEqual([game.hud.time, game.hud.score, game.hud.coins, game.hud.lives], [400, 1500, 8, 2]);
+  stand(game, 150, 176);
+  game.step(dt, { ...idle, downPressed: true });
+  assert.equal(game.region, 'cave');
+  assert.equal(game.player.x, 32);
+  for (const block of game.area.tiles.filter((tile) => tile.label)) {
+    stand(game, block.x + 10, block.y);
+    game.step(dt, { ...idle, downPressed: true });
+    assert.equal(game.region, 'cave');
+  }
+  const farCamera = game.camera;
+  stand(game, 1480, 176);
+  game.step(dt, idle);
+  assert.ok(game.camera < farCamera);
+  game.step(dt, { ...idle, downPressed: true });
+  assert.equal(game.region, 'exit');
+  assert.deepEqual([game.player.x, game.player.y + game.player.h], [42, 176]);
+  assert.deepEqual([game.hud.score, game.hud.coins, game.hud.lives, game.power], [1500, 8, 2, 'fire']);
+});
+
+test('World 1-2 lifts carry a rider in both directions and allow a jump off', () => {
+  const game = new SmbSession(undefined, undefined, World12);
+  game.region = 'cave';
+  const lift = game.area.tiles.find((tile) => tile.lift);
+  stand(game, lift.x + 8, lift.y);
+  const top = lift.y;
+  for (let i = 0; i < 120; i++) game.step(dt, idle);
+  const bottom = lift.y;
+  assert.ok(bottom > top + 60);
+  assert.ok(Math.abs(game.player.y + game.player.h - bottom) < .001);
+  for (let i = 0; i < 60; i++) game.step(dt, idle);
+  assert.ok(lift.y < bottom - 25);
+  assert.ok(Math.abs(game.player.y + game.player.h - lift.y) < .001);
+  game.step(dt, { ...idle, jumpPressed: true, jump: true });
+  assert.equal(game.player.grounded, false);
+  assert.ok(game.player.vy < 0);
+});
+
+test('World 1-2 Piranha Plant waits when the pipe is occupied and damages an exposed visitor', () => {
+  const game = new SmbSession(undefined, undefined, World12);
+  game.region = 'cave';
+  const plant = game.enemies.find((enemy) => enemy.kind === 'plant');
+  game.elapsed = 1.3;
+  stand(game, plant.x, 176);
+  game.step(dt, idle);
+  assert.equal(plant.active, false);
+  stand(game, 720);
+  game.step(dt, idle);
+  assert.equal(plant.active, true);
+  assert.ok(plant.y < plant.pipeTop);
+  stand(game, plant.x, 176);
+  game.step(dt, idle);
+  assert.equal(game.hud.phase, 'dying');
+});
+
+test('World 1-2 is traversable from the entrance to the flag as small Mario', () => {
+  const game = new SmbSession(undefined, undefined, World12);
+  const run = { ...idle, direction: 1, sprint: true };
+  for (let tick = 0; tick < 40; tick++) game.step(dt, { ...idle, direction: 1 });
+  for (let tick = 0; tick < 54; tick++) {
+    game.step(dt, {
+      ...idle, direction: tick < 5 ? 1 : 0, jump: tick < 32, jumpPressed: tick === 0, downPressed: true,
+    });
+  }
+  assert.equal(game.region, 'cave');
+
+  for (const approach of [78, 108, 51, 105, 30, 42]) {
+    for (let tick = 0; tick < approach; tick++) game.step(dt, run);
+    let airborne = false;
+    for (let tick = 0; tick < 78 && game.hud.phase === 'playing'; tick++) {
+      game.step(dt, { ...run, jump: tick < 40, jumpPressed: tick === 0 });
+      airborne ||= !game.player.grounded;
+      if (airborne && game.player.grounded) break;
+    }
+    assert.equal(game.hud.phase, 'playing');
+  }
+  for (let tick = 0; tick < 87; tick++) game.step(dt, run);
+  game.step(dt, { ...idle, downPressed: true });
+  assert.equal(game.region, 'exit');
+  for (let tick = 0; tick < 200 && game.player.x < 222; tick++) game.step(dt, run);
+  for (let tick = 0; tick < 60; tick++) game.step(dt, { ...run, jump: tick < 40, jumpPressed: tick === 0 });
+  for (let tick = 0; tick < 200 && game.hud.phase !== 'cleared'; tick++) {
+    game.step(dt, { ...run, jump: tick < 40, jumpPressed: tick === 0 });
+  }
+  assert.equal(game.hud.phase, 'cleared');
+  assert.equal(game.hud.lives, 3);
+  assert.equal(game.power, 'small');
+  assert.ok(game.hud.coins > 0);
 });

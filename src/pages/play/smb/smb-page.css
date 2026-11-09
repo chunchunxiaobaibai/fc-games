@@ -1,27 +1,140 @@
-.play { width: min(var(--content-width), 820px); margin: 1.5rem auto 0; }
-.play-top, .play-title { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; }
-.play-top { border-bottom: 1px solid var(--line); padding-bottom: .75rem; }
-.play-top > span, .eyebrow { color: var(--accent); font: 700 .74rem var(--mono); letter-spacing: .13em; }
-.play-title { margin: 1.2rem 0 .65rem; }
-.eyebrow { margin: 0 0 .4rem; }
-h1 { font-size: clamp(1.6rem, 5vw, 2.75rem); line-height: 1.15; margin: 0; }
-.toolbar { display: flex; gap: .5rem; }
-button { border: 1px solid var(--line); background: #2c2d46; padding: .47rem .72rem; }
-button:not(:disabled):hover { border-color: var(--accent); }
-button.primary { color: #201b28; font-weight: 800; background: var(--accent); border-color: var(--accent); }
-.sound-notice { color: var(--muted); margin: 0 0 .5rem; }
+.play {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.play-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: .55rem clamp(.75rem, 2vw, 2rem);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.play-header > div { text-align: center; }
+.play-header h1 { margin: 0; font-size: clamp(1.25rem, 3vw, 2.15rem); letter-spacing: -.045em; }
+.play-header p { margin: .22rem 0 0; color: var(--accent); font: 800 .68rem var(--mono); letter-spacing: .15em; }
+.play-brand { display: flex; align-items: center; gap: .48rem; font: 800 .78rem var(--mono); letter-spacing: .07em; }
+.play-brand span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 5px; background: var(--accent); color: #fff; font-size: 1.1rem; }
+.play-layout {
+  position: relative;
+  display: grid;
+  grid-template-columns: clamp(118px, 13vw, 180px) minmax(0, 1fr) clamp(170px, 19vw, 240px);
+  gap: clamp(.6rem, 1.6vw, 1.4rem);
+  padding: clamp(.5rem, 1.7vmin, 1.25rem) clamp(.5rem, 2vw, 2rem);
+  min-height: 0;
+}
+.play-nav { display: grid; align-content: start; gap: .25rem; font-size: .88rem; }
+.play-nav h2 { margin: 0 0 .25rem; padding: .2rem .45rem; font-size: .78rem; color: var(--muted); }
+.current-level { padding: .44rem .55rem; border-radius: 5px; background: var(--mint); font: 750 .8rem var(--mono); }
+.current-level::before { display: inline-block; width: .43rem; height: .43rem; margin-right: .45rem; background: var(--accent); content: ""; }
+.info-toggle { display: none; }
+.game-slot { container-type: size; min-width: 0; min-height: 0; }
+.console { background: #000; width: min(100%, calc(100cqh * 16 / 15), 960px); margin-inline: auto; }
+.board {
+  width: 100%;
+  aspect-ratio: 16 / 15;
+  position: relative;
+  overflow: hidden;
+  background: #5c94fc;
+  container-type: inline-size;
+  color: #fff;
+}
+.console:fullscreen, .console.expanded {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+.console.expanded { position: fixed; inset: 0; z-index: 20; }
+.console:fullscreen .board, .console.expanded .board { width: min(100%, calc(100dvh * 16 / 15)); }
+game-canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+.hud {
+  position: absolute;
+  top: 4%;
+  inset-inline: 6%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: .2em;
+  font: clamp(8px, 3.05cqw, 36px)/1.35 "FC SMB", var(--mono);
+  text-shadow: .09em .09em #183c5c;
+  pointer-events: none;
+  z-index: 2;
+}
+.hud div { display: grid; gap: .17em; }
+.hud strong { font-weight: normal; }
+.hud .hud-coins { display: flex; align-items: center; }
+.hud-coins img { width: 1.05em; height: 1.05em; margin-right: .15em; image-rendering: pixelated; }
+.screen-tools {
+  position: absolute;
+  z-index: 3;
+  bottom: .6rem;
+  right: .6rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: .3rem;
+}
+.screen-tools button {
+  font-size: clamp(.68rem, 2.1cqw, .85rem);
+  min-height: 2rem;
+  padding: .25rem .5rem;
+  background: #111b;
+  color: #fff;
+  border: 1px solid #fff9;
+}
+.screen-tools button:hover, .screen-tools button:focus-visible { background: #000; }
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000a;
+  padding: 13% 1rem 12%;
+  text-align: center;
+  z-index: 1;
+}
+.intro-screen { background: transparent; }
+.result-screen { background: #000e; }
+.menu { width: min(75%, 420px); display: grid; justify-items: center; align-content: center; gap: .4em; }
+.menu h2 { margin: .15em 0; font-size: clamp(1.1rem, 6cqw, 2.5rem); }
+.menu p { margin: .2em 0; font-size: clamp(.7rem, 3cqw, 1.1rem); }
+.menu .world-label { font: clamp(7px, 2.4cqw, 19px)/1.45 "FC SMB", var(--mono); text-shadow: 2px 2px #000; }
+.game-logo { width: min(100%, 69cqw); height: auto; max-height: 36cqw; object-fit: contain; image-rendering: pixelated; margin-bottom: .35rem; }
+.menu-choice {
+  padding: .35em .75em;
+  background: #000b;
+  border: 2px solid #fff;
+  color: white;
+  font-size: clamp(.75rem, 3.5cqw, 1.25rem);
+  font-weight: 750;
+}
+.menu-choice:hover, .menu-choice:focus-visible { background: #843415; }
+.menu-choice span { color: #ffce7b; }
+.sound-notice { position: absolute; z-index: 3; left: .6rem; bottom: 2.6rem; padding: .35rem; background: #000; font-size: .8rem; }
 .sound-notice:empty { display: none; }
-.console { margin: 1rem auto 0; border: 1px solid var(--line); background: #20223a; }
-.hud { min-height: 54px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: .5rem clamp(.35rem, 3vw, 1.4rem); gap: .3rem; text-align: center; }
-.hud div { display: grid; gap: .22rem; }
-.hud span { font-size: .73rem; color: var(--muted); }
-.hud strong { font: 800 clamp(.8rem, 2.4vw, 1.1rem) var(--mono); color: var(--accent); }
-.board { position: relative; display: grid; justify-items: center; background: #111329; }
-game-canvas { display: block; width: min(100%, 60vh); aspect-ratio: 256 / 240; position: relative; }
-.overlay { position: absolute; inset: 0; margin: 0; display: grid; place-items: center; background: rgb(16 17 33 / 78%); padding: .65rem; }
-.panel { text-align: center; padding: clamp(.8rem, 3vw, 1.6rem); background: #24253d; border: 1px solid var(--line); }
-.panel h2 { margin: .35rem 0 1rem; font-size: clamp(1.25rem, 4vw, 2rem); }
-.panel button { margin: .25rem; }
-.controls { display: flex; flex-wrap: wrap; gap: .65rem 1rem; margin-top: 1rem; color: var(--muted); font-size: .82rem; }
-kbd { font: .8rem var(--mono); color: var(--text); background: var(--surface); padding: .12rem .28rem; border: 1px solid var(--line); border-bottom-width: 2px; }
-.hint { font-size: .82rem; color: var(--muted); }
+.game-info { align-self: start; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: .8rem; }
+.info-heading { display: flex; justify-content: space-between; align-items: baseline; gap: .3rem; }
+.info-heading h2 { margin: 0; font-size: .95rem; }
+.info-heading span { color: var(--accent); white-space: nowrap; font: 750 .65rem var(--mono); }
+.game-info p { margin: .45rem 0; color: var(--muted); font-size: .79rem; line-height: 1.5; }
+.controls { margin: .6rem 0 0; border-top: 1px solid var(--line); }
+.controls div { display: flex; align-items: center; justify-content: space-between; gap: .35rem; padding: .32rem 0; border-bottom: 1px solid var(--line); font-size: .76rem; }
+.controls dd { margin: 0; }
+kbd { padding: .07rem .23rem; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; background: var(--paper); font: 750 .69rem var(--mono); }
+@media (max-width: 720px), (max-height: 440px) {
+  .play-header { grid-template-columns: 1fr; padding: .3rem; }
+  .play-brand, .play-nav h2 { display: none; }
+  .play-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: .35rem; }
+  .play-nav { grid-template-columns: 1fr auto 1fr; align-items: center; }
+  .play-nav .info-toggle { display: block; justify-self: end; padding: .35rem .5rem; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); font-size: .77rem; }
+  .game-info { display: none; position: absolute; z-index: 4; top: 2.7rem; right: .5rem; width: min(230px, 100% - 1rem); }
+  .game-info.is-open { display: block; }
+  .screen-tools { bottom: .3rem; right: .3rem; }
+}
+@media (max-height: 440px) {
+  .game-info .info-tip { display: none; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .4rem; }
+}

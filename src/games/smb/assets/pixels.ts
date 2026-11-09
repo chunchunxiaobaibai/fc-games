@@ -1,53 +1,299 @@
-// Original pixel drawings. A dot is transparent and each other character indexes the palette.
-export const pixels = {
-  player: [
-    '...rrrrr....', '..rrrrrrrr..', '..kksks.....', '.ksksssks...',
-    '.ksssksss...', '..kssssss...', '...ssss.....', '..rrbr.....s',
-    '.rrrbbrr..ss', 'srrbbbyrrss.', 'ss.bbbbbrr..', '...bbbbbb...',
-    '..bbb.bbb...', '..kk...kk...', '.kkk...kkk..',
-  ],
+// Each character is one logical pixel. Dots are transparent.
+export const palette: Readonly<Record<string, string>> = {
+  k: '#302a32', r: '#b93227', R: '#eb5940', s: '#ffd295', S: '#e9955e',
+  b: '#275177', B: '#4785a0', y: '#ffd061', w: '#fff8db', W: '#eddfad',
+  d: '#8c4b39', D: '#cd8054', g: '#28724e', l: '#7bbb60', L: '#b5db7b',
+};
+
+export const firePalette: Readonly<Record<string, string>> = {
+  ...palette, r: '#e1c99b', R: '#fff8db', b: '#a42f26', B: '#ed5740',
+};
+
+const smallHead = [
+  '...kkkkkk.....',
+  '..kRRRRRrk....',
+  '.kRRwRRrrkk...',
+  '.krrrrrrrrrk..',
+  '..kksksk......',
+  '..kssksSsk....',
+  '..kSsskkkk....',
+  '...ksssssk....',
+];
+
+const bigHead = [
+  '...kkkkkk.....',
+  '..kRRRRRrk....',
+  '.kRRwRRRrrk...',
+  '.kRRwRRrrrkk..',
+  '.krrrrrrrrrrk.',
+  '..kksskssk....',
+  '..ksssksssk...',
+  '..ksSsssssSk..',
+  '..kssSkkkkk...',
+  '...ksssssk....',
+  '....kkkkk.....',
+];
+
+const fireHead = [
+  '...kkkkkk.....',
+  '..kRRRRRrk....',
+  '.kRRBRRRrrk...',
+  '.kRBBBRrrrkk..',
+  '.krrrrrrrrrrk.',
+  ...bigHead.slice(5),
+];
+
+const tallStand = [
+  '...kRBBRrk....',
+  '..kRRBBRrrk...',
+  '..krrBByrrk...',
+  '..krrBBbrrk...',
+  '..kwwBBbwwk...',
+  '..kWwBBbwWk...',
+  '...kkBBbbk....',
+  '....kBbbk.....',
+  '...kBBbBbk....',
+  '...kBbkBbk....',
+  '...kBbkbbk....',
+  '...kBbkbbk....',
+  '...kdk.kdk....',
+  '..kdkk.kdkk...',
+  '..kkkk.kkkk...',
+];
+
+const tallStride = [
+  '...kRBBRrk....',
+  '..kRRBBRrrk...',
+  '..krrBByRrwk..',
+  '.krrrBBbrrwwk.',
+  '.kwwkBBbbbkk..',
+  '..kk.BBbbk....',
+  '....kBBbbk....',
+  '....kBBbbk....',
+  '...kBBbBBbk...',
+  '..kBBbk.Bbbk..',
+  '..kBbk...kbbk.',
+  '.kddk....kbbk.',
+  'kddk......kdk.',
+  'kkk.......kddk',
+  '..........kkkk',
+];
+
+const tallPass = [
+  '...kRBBRrk....',
+  '...kRBBRrrk...',
+  '...krBByrrk...',
+  '...krBBbwWk...',
+  '...krBBbkk....',
+  '...kwwBbbk....',
+  '....kkBbbk....',
+  '....kBBbbk....',
+  '....kBBbbk....',
+  '....kBBbbk....',
+  '...kBBkbk.....',
+  '...kBbk.kdk...',
+  '....kdk.kddk..',
+  '....kdkk.kkk..',
+  '....kkkk......',
+];
+
+const tallPush = [
+  '...kRBBRrk....',
+  '..kRRBBRRrk...',
+  '.kRrrBBBRRrk..',
+  '.kwkkBBykwwk..',
+  '..kk.BBbwWk...',
+  '....kBBbkk....',
+  '....kBBbbk....',
+  '....kBBbbk....',
+  '....kBBbBbk...',
+  '....kBBkBbbk..',
+  '...kBbk.kBbk..',
+  '..kBbk..kdk...',
+  '..kdk...kddk..',
+  '.kdkk...kkkk..',
+  '.kkkk.........',
+];
+
+const tallJump = [
+  '..wkRBBRrkwWk.',
+  '.kwwRBBRRRwwk.',
+  '..kkRBBBRRrk..',
+  '...krBByrrk...',
+  '...krBBbkk....',
+  '....kBBbbk....',
+  '....kBBbbk....',
+  '....kBBbbk....',
+  '...kBBbBBbk...',
+  '..kBbbkBBbbk..',
+  '.kBbk..kBBdk..',
+  '.kdk....kkkk..',
+  'kddk..........',
+  'kdk...........',
+  'kkk...........',
+];
+
+export const mario = {
+  small: {
+    stand: [...smallHead,
+      '..kRBBRrk.....',
+      '.kwwBBywwk....',
+      '..kkBBbkk.....',
+      '...kBBbbk.....',
+      '...kBkBbk.....',
+      '..kdkkkdk.....',
+      '..kkkkkkkk....',
+    ],
+    run: [
+      [...smallHead,
+        '..kRBBRrwk....',
+        '.kwwBByrrwk...',
+        '..kkBBbbkk....',
+        '...kBBbbk.....',
+        '..kBBkkBbk....',
+        '.kddk..kddk...',
+        'kkkk....kkkk..',
+      ],
+      [...smallHead,
+        '...kRBBRrk....',
+        '..krBBywwk....',
+        '..krBBbkk.....',
+        '...kBBbbk.....',
+        '....kBkBbk....',
+        '....kdk.kdk...',
+        '....kkkk.kk...',
+      ],
+      [...smallHead,
+        '..kRBBRRrk....',
+        '..kwBBywwk....',
+        '...kBBbkk.....',
+        '...kBBbbk.....',
+        '...kBkkBbk....',
+        '..kddk.kddk...',
+        '..kkkk.kkkk...',
+      ],
+    ],
+    jump: [...smallHead,
+      '.kwkBBRrkwWk..',
+      '.kwwBByRrwwk..',
+      '..kkBBbbkk....',
+      '...kBBbBBk....',
+      '..kBbkkBbdk...',
+      '.kddk..kkkk...',
+      '.kkk..........',
+    ],
+  },
+  big: {
+    stand: [...bigHead, ...tallStand],
+    run: [[...bigHead, ...tallStride], [...bigHead, ...tallPass], [...bigHead, ...tallPush]],
+    jump: [...bigHead, ...tallJump],
+  },
+  fire: {
+    stand: [...fireHead, ...tallStand],
+    run: [[...fireHead, ...tallStride], [...fireHead, ...tallPass], [...fireHead, ...tallPush]],
+    jump: [...fireHead, ...tallJump],
+  },
+} as const;
+
+// Hands tuck in during a change. The renderer keeps the feet pinned to the interpolated baseline.
+export const marioChange = [
+  ...bigHead,
+  '...kRBBRrk....',
+  '..kwwBBywwk...',
+  '..kWwBBbwWk...',
+  '...kkBBbkk....',
+  '....kBBbk.....',
+  '...kBBbBbk....',
+  '...kBbkbbk....',
+  '..kddk.kddk...',
+  '..kkkk.kkkk...',
+] as const;
+
+const goombaHead = [
+  '....kkkkkk....',
+  '...kDDDDddk...',
+  '..kDDDDDDddk..',
+  '.kDDDDDDDDddk.',
+  'kDDkDDDDkDDddk',
+  'kDwwkkkwwDDddk',
+  'kDwkDDDkwDDddk',
+  'kDwwDDDwwDdddk',
+  '.kkkkkkkkkkkk.',
+  '...kssssSsk...',
+  '..kssssSSssk..',
+];
+
+const koopaBody = [
+  '........kkk...',
+  '.......ksssk..',
+  '......kswksSk.',
+  '......kssksSsk',
+  '.......kssssSk',
+  '.......kSkkk..',
+  '...kkkkkSk....',
+  '..klLlgkSk....',
+  '.klLLglgksk...',
+  '.kllggllkssk..',
+  'klggLllgkSsk..',
+  'kglgllggkSsk..',
+  'kggggggkSSsk..',
+  '.kwwwwwWSSk...',
+  '..kkkkkkkk....',
+  '...kssssSk....',
+];
+
+export const enemies = {
   goomba: [
-    '....dddd....', '...dddddd...', '..dddddddd..', '.dddddddddd.',
-    'ddkddddkdddd', 'ddwkkkkwdddd', 'ddwkdkwddddd', 'ddwwdwwddddd',
-    '.dddddddddd.', '...ssssss...', '..ssssssss..', '.kksssssskk.',
-    'kkkk....kkkk', 'kkk......kkk',
+    [...goombaHead, '.kddkSSkddk...', 'kdddk..kdddk..', 'kkkk....kkkk..'],
+    [...goombaHead, '..kddkSSkddk..', '..kdddk..kdddk', '..kkkk....kkkk'],
   ],
   koopa: [
-    '.......ssss.', '......sswks.', '......sssss.', '.......ssss.',
-    '........ss..', '....gg..ss..', '...ggggss...', '..ggllggs...',
-    '.ggllllggs..', '.ggllllggs..', 'gggllllggss.', 'gggggggggss.',
-    '.wwwwwwwsss.', '...ss.sss...', '..sss..sss..', '..kk....kk..',
+    [...koopaBody, '..kssk.kssk...', '.kssSk.kssSk..', '.kkkk..kkkk...'],
+    [...koopaBody, '....ksskSsk...', '...kssSk.kssk.', '...kkkk..kkkk.'],
   ],
   shell: [
-    '....gggg....', '..ggllllgg..', '.ggllllllgg.', 'gggllllllggg',
-    'gggllllllggg', 'gggggggggggg', 'wwwwwwwwwwww', '.kkkkkkkkkk.',
-  ],
-  mushroom: [
-    '....rrrr....', '..rrrrrrrr..', '.rrwwrrwwrr.', 'rrwwwwwwwwrr',
-    'rrwwwwwwwwrr', 'rrrrrrrrrrrr', '.rrrrrrrrrr.', '..ssssssss..',
-    '..ssksskss..', '..ssssssss..', '...ssssss...',
-  ],
-  flower: [
-    '...rrrrrr...', '..rryyyyrr..', '.rryywwyyrr.', '.rrywwwwyrr.',
-    '..rryyyyrr..', '...rrrrrr...', '.....gg.....', '.gg..gg..gg.',
-    '..gg.gg.gg..', '...gggggg...',
+    [
+      '...kkkkkkkk...',
+      '..klLLLLlggk..',
+      '..klLLllgggk..',
+      '.klLLglglgggk.',
+      'klLLglllglgggk',
+      'klLglLLlglgggk',
+      'kllglLLlgggggk',
+      'kggggggggggggk',
+      'kwwwwwwwwwwwWk',
+      'kWWWWWWWWWWWWk',
+      '.kggkkkkgggkk.',
+      '.kkkkkkkkkkkk.',
+    ],
+    [
+      '...kkkkkkkk...',
+      '..kglLLLLlgk..',
+      '..kglLLllggk..',
+      '.kglLLglglggk.',
+      'kgglLglllglggk',
+      'kglglLLlglgggk',
+      'kgglglLLlggggk',
+      'kggggggggggggk',
+      'kwwwwwwwwwwwWk',
+      'kWWWWWWWWWWWWk',
+      '.kkgggkkkkggk.',
+      '.kkkkkkkkkkkk.',
+    ],
   ],
 } as const;
 
-export const palette: Record<string, string> = {
-  r: '#c1392b', k: '#432830', s: '#ffd494', b: '#29468b', y: '#ffcb59',
-  d: '#a85b42', w: '#fff4db', g: '#267c52', l: '#8bc759',
-};
-
-// Keep a common frame size and baseline while the legs change pose.
-export const playerWalk = [
-  ...pixels.player.slice(0, 12),
-  '..bbbb......', '.kk.bbbb....', 'kkk...kkkk..',
-];
-
-export const playerAir = [
-  ...pixels.player.slice(0, 12),
-  '.bbbb.bbb...', '.kk....kk...', '.......kkk..',
-];
-
-export const firePalette: Record<string, string> = { ...palette, r: '#fff0cd', b: '#c13d36' };
+export const pickups = {
+  mushroom: [
+    '....kkkkkk....', '...kRRRRrrk...', '..kRwwRRwwrk..', '.kRwwwRwwwrrk.',
+    '.kRRRRRRrrrrk.', 'kRRwwRRwwrrrrk', 'kRRwwrrwwrrrrk', 'kkkkkkkkkkkkkk',
+    '..kwssssssk...', '..kwssssssk...', '..kwskskSsk...', '..kssssSSsk...',
+    '..ksssSSSsk...', '...kkkkkkk....',
+  ],
+  flower: [
+    '...kkkkkkkk...', '..kRRRRRRrrk..', '.kRRyyyyyRrrk.', '.kRywwwyyRrrk.',
+    '.kRRyyyyyrrrk.', '..krrrrrrrrk..', '...kkkkkkkk...', '......kgk.....',
+    '..kk..kgk.kk..', '.kLlk.kgkklgk.', '..kLlkklklgk..', '...kllklggk...',
+    '....kllllk....', '.....kkkk.....',
+  ],
+} as const;

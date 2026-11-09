@@ -1,69 +1,104 @@
 <main class="play" @keydown="onKey($event)">
-  <div class="play-top">
-    <route-link :to="{ name: 'lobby' }"><template slot="default">← 返回大厅</template></route-link>
-    <span>FC / 01</span>
-  </div>
-  <div class="play-title">
+  <header class="play-header">
+    <span class="play-brand"><span aria-hidden="true">✚</span> FC GAMES</span>
     <div>
-      <p class="eyebrow">SUPER MARIO BROS.</p>
       <h1>超级马里奥兄弟</h1>
+      <p>SUPER MARIO BROS.</p>
     </div>
-    <div class="toolbar" aria-label="游戏操作">
-      <button type="button" :disabled="!ready || finished || restarting" @click="pause()">{{ paused ? '继续' : '暂停' }}</button>
-      <button type="button" @click="toggleSound()">{{ muted ? '开启声音' : '静音' }}</button>
+  </header>
+  <div class="play-layout">
+    <nav class="play-nav" aria-label="游戏导航">
+      <h2>游戏导航</h2>
+      <route-link :to="{ name: 'lobby' }"><template slot="default">← 返回大厅</template></route-link>
+      <span class="current-level" aria-current="page">World {{ level.id }}</span>
+      <button type="button" class="info-toggle" :aria-expanded="introOpen" aria-controls="smb-intro" @click="toggleIntro()">{{ introOpen ? '关闭介绍' : '游戏介绍' }}</button>
+    </nav>
+    <div class="game-slot">
+      <section class="console" :class="expanded ? 'console expanded' : 'console'" ref="screen" :aria-label="'World ' + level.id + ' 游戏画面'">
+        <div class="board" ref="board">
+          <template when="assetsReady">
+            <game-canvas :scene="scene" :options="options" @ready="onReady($event)" @error="onError($event)"></game-canvas>
+          </template>
+          <div class="hud" aria-label="本局状态">
+            <div aria-label="分数"><span>MARIO</span><strong data-stat="score">{{ score }}</strong></div>
+            <div class="hud-coins" aria-label="金币"><img :src="hudCoin" alt=""><strong data-stat="coins">×{{ coins }}</strong></div>
+            <div aria-label="世界"><span>WORLD</span><strong>{{ level.id }}</strong></div>
+            <div aria-label="时间"><span>TIME</span><strong data-stat="time">{{ time }}</strong></div>
+          </div>
+          <div class="screen-tools" aria-label="画面操作">
+            <template when="started && !dying && !finished && !paused && !issue">
+              <button type="button" @click="pause()">暂停</button>
+            </template>
+            <button type="button" @click="toggleSound()">{{ muted ? '开启声音' : '静音' }}</button>
+            <button type="button" @click="toggleFullscreen()">{{ enlarged ? '退出全屏' : '全屏' }}</button>
+          </div>
+          <p class="sound-notice" role="status">{{ soundNotice }}</p>
+
+          <template when="!ready && !issue"><div class="overlay"><p role="status">正在加载关卡…</p></div></template>
+          <template when="ready && !started && !issue">
+            <div class="overlay intro-screen">
+              <div class="menu">
+                <img class="game-logo" :src="classicLogo" alt="Super Mario Bros.">
+                <button type="button" class="menu-choice" @click="start()"><span aria-hidden="true">▶</span> 开始游戏</button>
+                <p class="world-label">WORLD {{ level.id }}</p>
+              </div>
+            </div>
+          </template>
+          <template when="paused && !finished && !issue">
+            <div class="overlay">
+              <div class="menu">
+                <p class="world-label">PAUSED · WORLD {{ level.id }}</p>
+                <h2>游戏已暂停</h2>
+                <p>生命 <strong data-stat="lives">{{ hud.lives }}</strong></p>
+                <button type="button" class="menu-choice" :disabled="restarting" @click="pause()">继续游戏</button>
+                <button type="button" class="menu-choice" :disabled="restarting" @click="restart('new')">重新开局</button>
+              </div>
+            </div>
+          </template>
+          <template when="finished && !issue">
+            <div class="overlay result-screen">
+              <div class="menu">
+                <div role="status">
+                  <p class="world-label">WORLD {{ level.id }} / {{ hud.phase === 'cleared' ? 'CLEAR' : 'RESULT' }}</p>
+                  <h2>{{ result }}</h2>
+                  <p>分数 {{ score }} · 金币 {{ coins }} · 生命 <strong data-stat="lives">{{ hud.lives }}</strong></p>
+                </div>
+                <template when="hud.phase === 'cleared' && nextLevelId !== ''">
+                  <button type="button" class="menu-choice" :disabled="restarting" @click="restart('next')">下一关 · {{ nextLevelId }}</button>
+                </template>
+                <template when="hud.phase === 'cleared' && !nextLevelId"><p>World 1-3 尚未开放</p></template>
+                <button type="button" class="menu-choice" :disabled="restarting" @click="restart(hud.phase === 'lost' ? 'retry' : 'new')">{{ hud.phase === 'lost' && hud.lives > 0 ? '再试一次' : '重新开局' }}</button>
+                <route-link :to="{ name: 'lobby' }"><template slot="default">返回大厅</template></route-link>
+              </div>
+            </div>
+          </template>
+          <template when="issue !== ''">
+            <div class="overlay">
+              <div class="menu">
+                <p role="alert">{{ issue }}</p>
+                <template when="!assetsReady"><button type="button" class="menu-choice" @click="load()">重试</button></template>
+                <template when="ready"><button type="button" class="menu-choice" :disabled="restarting" @click="restart('new')">重试</button></template>
+                <route-link :to="{ name: 'lobby' }"><template slot="default">返回大厅</template></route-link>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
     </div>
+    <aside id="smb-intro" :class="introOpen ? 'game-info is-open' : 'game-info'" aria-labelledby="smb-intro-title">
+      <div class="info-heading">
+        <h2 id="smb-intro-title">游戏介绍</h2><span>1985 / FC</span>
+      </div>
+      <p><strong>{{ level.title }}</strong> · {{ level.summary }}</p>
+      <dl class="controls" aria-label="键盘操作">
+        <div><dt>移动</dt><dd><kbd>←</kbd> <kbd>→</kbd></dd></div>
+        <div><dt>跳跃</dt><dd><kbd>Space</kbd> <kbd>Z</kbd></dd></div>
+        <div><dt>助跑</dt><dd><kbd>Shift</kbd> <kbd>X</kbd></dd></div>
+        <div><dt>进管道</dt><dd><kbd>↓</kbd></dd></div>
+        <div><dt>火球</dt><dd><kbd>C</kbd> <kbd>X</kbd></dd></div>
+        <div><dt>暂停</dt><dd><kbd>Esc</kbd></dd></div>
+      </dl>
+      <p class="info-tip">先助跑再跳，可以跳得更高、更远。</p>
+    </aside>
   </div>
-  <p class="sound-notice" role="status">{{ soundNotice }}</p>
-  <section class="console" aria-label="World 1-1 游戏画面">
-    <div class="hud" aria-label="本局状态">
-      <div><span>分数</span><strong data-stat="score">{{ score }}</strong></div>
-      <div><span>金币</span><strong data-stat="coins">{{ coins }}</strong></div>
-      <div><span>世界</span><strong>1-1</strong></div>
-      <div><span>生命</span><strong data-stat="lives">{{ hud.lives }}</strong></div>
-      <div><span>时间</span><strong data-stat="time">{{ time }}</strong></div>
-    </div>
-    <div class="board" ref="board">
-      <game-canvas :scene="scene" :options="options" @ready="onReady($event)" @error="onError($event)"></game-canvas>
-      <template when="!ready && !issue"><p class="overlay" role="status">正在加载关卡…</p></template>
-      <template when="paused && !finished && !issue">
-        <div class="overlay" aria-label="已暂停">
-          <div class="panel">
-            <p class="eyebrow">WORLD 1-1</p>
-            <h2>游戏已暂停</h2>
-            <button type="button" class="primary" :disabled="restarting" @click="pause()">继续游戏</button>
-            <button type="button" :disabled="restarting" @click="restart(false)">重新开局</button>
-          </div>
-        </div>
-      </template>
-      <template when="finished && !issue">
-        <div class="overlay">
-          <div class="panel" role="status">
-            <p class="eyebrow">WORLD 1-1</p>
-            <h2>{{ result }}</h2>
-            <p>分数 {{ score }} · 金币 {{ coins }}</p>
-            <button type="button" class="primary" :disabled="restarting" @click="restart(hud.phase === 'lost')">{{ hud.phase === 'lost' && hud.lives > 0 ? '再试一次' : '重新开局' }}</button>
-            <route-link :to="{ name: 'lobby' }"><template slot="default">返回大厅</template></route-link>
-          </div>
-        </div>
-      </template>
-      <template when="issue !== ''">
-        <div class="overlay">
-          <div class="panel">
-            <p role="alert">{{ issue }}</p>
-            <button type="button" :disabled="!ready || restarting" @click="restart(false)">重试</button>
-            <route-link :to="{ name: 'lobby' }"><template slot="default">返回大厅</template></route-link>
-          </div>
-        </div>
-      </template>
-    </div>
-  </section>
-  <div class="controls" aria-label="键盘说明">
-    <span><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd> 移动</span>
-    <span><kbd>Space</kbd> / <kbd>Z</kbd> 跳跃</span>
-    <span><kbd>Shift</kbd> / <kbd>X</kbd> 冲刺</span>
-    <span><kbd>↓</kbd> 进管道</span>
-    <span><kbd>C</kbd> / <kbd>X</kbd> 发射火球</span>
-    <span><kbd>Esc</kbd> 暂停</span>
-  </div>
-  <p class="hint">点击画面可恢复键盘控制。按住跳跃键可以跳得更高。</p>
 </main>

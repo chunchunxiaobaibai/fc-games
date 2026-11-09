@@ -1,12 +1,12 @@
 import { component } from '@xiaobaibaifqy/jingchuanchu-ecs';
 import type { Box } from './rules/collision.ts';
-import type { SmbSession } from './smb-session.ts';
+import type { Power, SmbSession } from './smb-session.ts';
 
 type Point = Pick<Box, 'x' | 'y'>;
 
 export function captureSmbFrame(state: SmbSession) {
   const positions = new Map<Box, { x: number; feet: number }>();
-  for (const group of [state.items[state.region], state.actors[state.region], state.shots]) {
+  for (const group of [state.pickups, state.enemies, state.shots, state.area.tiles.filter((tile) => tile.lift)]) {
     for (const body of group) positions.set(body, { x: body.x, feet: body.y + body.h });
   }
   return {
@@ -25,6 +25,7 @@ export interface SmbPresentation {
   state: SmbSession;
   previous: ReturnType<typeof captureSmbFrame>;
   alpha: number;
+  powerChange?: { from: Power; at: number };
 }
 
 export const SmbFrame = component<SmbPresentation>('smb-frame');

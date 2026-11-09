@@ -18,7 +18,7 @@ export const GameCatalog: readonly GameEntry[] = [
     originalTitle: 'SUPER MARIO BROS.',
     genre: '平台跳跃',
     year: 1985,
-    summary: '奔跑、跳跃、踢龟壳，穿过蘑菇王国的第一关。',
+    summary: '奔跑、跳跃、踢龟壳，穿过蘑菇王国与地下洞窟。',
     cover: new URL('../games/smb/assets/cover.svg', import.meta.url).href,
     loadPage: () => import('./play/smb/smb-page.js').then((module) => module.SmbPage),
   },
