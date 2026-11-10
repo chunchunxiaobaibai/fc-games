@@ -21,7 +21,7 @@
             <p class="english-title">{{ game.originalTitle }}</p>
             <h3>{{ game.title }}</h3>
             <p class="summary">{{ game.summary }}</p>
-            <route-link :to="game.target"><template slot="default">开始游戏<span class="link-context">：{{ game.title }}</span> <span aria-hidden="true">→</span></template></route-link>
+            <route-link :to="game.target"><template slot="default">{{ pendingGame === game.target.name ? '正在打开…' : '开始游戏' }}<span class="link-context">：{{ game.title }}</span> <span aria-hidden="true">→</span></template></route-link>
           </div>
         </article>
       </template>

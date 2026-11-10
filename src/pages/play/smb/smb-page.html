@@ -9,7 +9,12 @@
   <div class="play-layout">
     <nav class="play-nav" aria-label="游戏导航">
       <h2>游戏导航</h2>
-      <route-link :to="{ name: 'lobby' }"><template slot="default">← 返回大厅</template></route-link>
+      <template when="canSaveAndExit">
+        <button type="button" class="exit-link" :disabled="savingExit" @click="saveAndExit()">← 保存并退出</button>
+      </template>
+      <template when="!canSaveAndExit">
+        <route-link :to="{ name: 'lobby' }"><template slot="default">← 返回大厅</template></route-link>
+      </template>
       <span class="current-level" aria-current="page">World {{ level.id }}</span>
       <button type="button" class="info-toggle" :aria-expanded="introOpen" aria-controls="smb-intro" @click="toggleIntro()">{{ introOpen ? '关闭介绍' : '游戏介绍' }}</button>
     </nav>
@@ -31,14 +36,19 @@
             <template when="started && !stageIntro && !dying && !finished && !paused && !issue">
               <button type="button" @click="pause()">暂停</button>
             </template>
-            <button type="button" class="keyboard-toggle" :disabled="!saveReady" @click="toggleKeyboard()">键位设置</button>
-            <button type="button" @click="toggleSound()">{{ muted ? '开启声音' : '静音' }}</button>
-            <button type="button" @click="toggleFullscreen()">{{ enlarged ? '退出全屏' : '全屏' }}</button>
+            <template when="canSaveAndExit && !paused">
+              <button type="button" @click="saveAndExit()">保存并退出</button>
+            </template>
+            <button type="button" class="keyboard-toggle" :disabled="!saveReady || savingExit" @click="toggleKeyboard()">键位设置</button>
+            <button type="button" :disabled="savingExit" @click="toggleSound()">{{ muted ? '开启声音' : '静音' }}</button>
+            <button type="button" :disabled="savingExit" @click="toggleFullscreen()">{{ enlarged ? '退出全屏' : '全屏' }}</button>
           </div>
           <p class="sound-notice" role="status">{{ soundNotice }}</p>
 
-          <template when="(!ready || !saveReady) && !issue"><div class="overlay"><p role="status">正在加载关卡…</p></div></template>
-          <template when="ready && saveReady && !started && !issue">
+          <template when="(!saveReady || pendingStart !== null || (restarting && !started)) && !issue">
+            <div class="overlay"><p role="status">正在加载关卡…</p></div>
+          </template>
+          <template when="saveReady && !started && pendingStart === null && !restarting && !issue">
             <div class="overlay title-screen">
               <img class="title-backdrop" :src="classicMenuBackground" alt="">
               <div class="title-menu">
@@ -46,11 +56,11 @@
                 <template when="titlePanel === 'menu'">
                   <div class="title-actions" aria-label="标题菜单">
                     <template when="resumeLevel !== ''">
-                      <button type="button" :aria-label="'继续存档 ' + resumeLevel" :disabled="restarting" @click="restart('resume')">CONTINUE · {{ resumeLevel }}</button>
+                      <button type="button" :aria-label="'继续存档 ' + resumeLevel" @click="startGame('resume')">CONTINUE · {{ resumeLevel }}</button>
                     </template>
-                    <button type="button" aria-label="开始游戏" :disabled="restarting" @click="restart('start')">{{ resumeLevel !== '' ? 'NEW GAME' : 'START GAME' }}</button>
-                    <button type="button" aria-label="选择关卡" :disabled="restarting" @click="showTitlePanel('levels')">LEVEL SELECT</button>
-                    <button type="button" aria-label="游戏设置" :disabled="restarting" @click="showTitlePanel('options')">OPTIONS</button>
+                    <button type="button" aria-label="开始游戏" @click="startGame('start')">{{ resumeLevel !== '' ? 'NEW GAME' : 'START GAME' }}</button>
+                    <button type="button" aria-label="选择关卡" @click="showTitlePanel('levels')">LEVEL SELECT</button>
+                    <button type="button" aria-label="游戏设置" @click="showTitlePanel('options')">OPTIONS</button>
                   </div>
                   <p class="title-selection">WORLD {{ startingLevelId }} <span aria-label="开局生命数">× {{ startingLives }}</span></p>
                 </template>
@@ -93,8 +103,13 @@
                 <p class="world-label">PAUSED · WORLD {{ level.id }}</p>
                 <h2>游戏已暂停</h2>
                 <p class="life-display" aria-label="剩余生命"><img :src="hudMario" alt=""> × <strong data-stat="lives">{{ hud.lives }}</strong></p>
-                <button type="button" class="menu-choice" :disabled="restarting" @click="pause()">继续游戏</button>
-                <button type="button" class="menu-choice" :disabled="restarting" @click="restart('new')">重新开局</button>
+                <button type="button" class="menu-choice" :disabled="restarting || savingExit" @click="pause()">继续游戏</button>
+                <template when="canSaveAndExit">
+                  <button type="button" class="menu-choice" :disabled="savingExit" @click="saveAndExit()">{{ savingExit ? '正在保存…' : '保存并退出' }}</button>
+                </template>
+                <button type="button" class="menu-choice" :disabled="restarting || savingExit" @click="restart('new')">重新开局</button>
+                <template when="canSaveAndExit && exitNotice === ''"><p>读档后从本关起点继续。</p></template>
+                <template when="exitNotice !== ''"><p role="alert">{{ exitNotice }}</p></template>
               </div>
             </div>
           </template>

@@ -56,13 +56,15 @@ export const SmbPage = definePage({
       id, index, completed: profile().cleared.includes(id),
     })));
     const saves = localGameSaves;
-    let writes = Promise.resolve();
+    let writes = Promise.resolve(true);
     const writeProfile = (changes: Partial<SmbProfile>) => {
       const next = { ...profile(), ...changes };
       profile.set(next);
-      writes = writes.then(() => saves.write(gameId, next)).catch(() => {
+      writes = writes.then(() => saves.write(gameId, next)).then(() => true, () => {
         if (!context.signal.aborted) storageNotice.set('浏览器存储不可用，改动仅在本次打开时生效。');
+        return false;
       });
+      return writes;
     };
     const levelIndex = signal(0);
     const level = computed(() => {
@@ -84,7 +86,12 @@ export const SmbPage = definePage({
     const paused = signal(false);
     const ready = signal(false);
     const restarting = signal(false);
+    const pendingStart = signal<'start' | 'resume' | null>(null);
+    const savingExit = signal(false);
+    const exitNotice = signal('');
     const issue = signal('');
+    const canSaveAndExit = computed(() => started() && !stageIntro() && !restarting() &&
+      !issue() && hud().phase === 'playing');
     const soundNotice = signal('');
     const muted = computed(() => context.audio.preferences().muted || context.audio.state() !== 'ready');
     const finished = computed(() => hud().phase === 'lost' || hud().phase === 'cleared');
@@ -193,13 +200,42 @@ export const SmbPage = definePage({
       };
       ready.set(true);
       applyPause();
-      if (!started() && !restarting()) showTitlePanel('menu');
+      const mode = pendingStart();
+      if (mode) {
+        pendingStart.set(null);
+        void restart(mode);
+      }
       if (started() && !restarting()) restoreFocus();
     };
     const pause = () => {
-      if (!started() || stageIntro() || !ready() || dying() || finished() || restarting() || issue()) return;
+      if (!started() || stageIntro() || !ready() || dying() || finished() || restarting() || savingExit() || issue()) return;
       paused.set(!paused());
-      if (!paused()) focusCanvas();
+      if (!paused()) {
+        exitNotice.set('');
+        focusCanvas();
+      }
+    };
+    const saveAndExit = async () => {
+      if (!canSaveAndExit() || savingExit()) return;
+      savingExit.set(true);
+      exitNotice.set('');
+      paused.set(true);
+      applyPause();
+      try {
+        const { score, coins, lives, power } = hud();
+        const saved = await writeProfile({ checkpoint: { level: level().id, score, coins, lives, power } });
+        if (context.signal.aborted) return;
+        if (!saved) {
+          exitNotice.set('存档写入失败，游戏已暂停。可以重试保存或继续游戏。');
+          return;
+        }
+        const result = await context.router.push({ name: 'lobby' });
+        if (!context.signal.aborted && result.status !== 'committed') {
+          exitNotice.set('进度已保存，暂时无法返回大厅。请重试。');
+        }
+      } finally {
+        if (!context.signal.aborted) savingExit.set(false);
+      }
     };
     const toggleIntro = () => introOpen.set(!introOpen());
     const toggleKeyboard = () => {
@@ -366,6 +402,7 @@ export const SmbPage = definePage({
     });
     const onError = (error: unknown) => {
       console.error(error);
+      pendingStart.set(null);
       issue.set('游戏场景暂时无法运行，可以重试或返回大厅。');
     };
     const load = async () => {
@@ -389,12 +426,19 @@ export const SmbPage = definePage({
     }).catch(() => {
       if (!context.signal.aborted) storageNotice.set('浏览器存储不可用，改动仅在本次打开时生效。');
     }).finally(() => {
-      if (!context.signal.aborted) saveReady.set(true);
+      if (context.signal.aborted) return;
+      saveReady.set(true);
+      if (!issue()) showTitlePanel('menu');
     });
+    const startGame = (mode: 'start' | 'resume') => {
+      if (!saveReady() || started() || restarting() || pendingStart() || issue()) return;
+      if (!context.audio.preferences().muted) void context.audio.unlock();
+      if (handle) void restart(mode);
+      else pendingStart.set(mode);
+    };
     const restart = async (mode: 'start' | 'resume' | 'retry' | 'new' | 'next') => {
       const starting = mode === 'start' || mode === 'resume';
-      if (!handle || !saveReady() || restarting() || (starting && started())) return;
-      if (starting && !context.audio.preferences().muted) void context.audio.unlock();
+      if (!handle || !saveReady() || restarting() || savingExit() || (starting && started())) return;
       const before = hud();
       const next = mode === 'next' && before.phase === 'cleared' ? campaign[levelIndex() + 1] : undefined;
       if (mode === 'next' && !next) return;
@@ -424,14 +468,17 @@ export const SmbPage = definePage({
         hud.set({ ...initial.carry });
         const { score, coins, lives, power } = initial.carry;
         writeProfile({ checkpoint: { level: target.id, score, coins, lives, power } });
+        exitNotice.set('');
         paused.set(false);
-        showStageIntro();
+        if (retry || next) showStageIntro();
         started.set(true);
-        restoreFocus();
       } catch (error) {
         if (!context.signal.aborted) onError(error);
       } finally {
-        if (!context.signal.aborted) restarting.set(false);
+        if (!context.signal.aborted) {
+          restarting.set(false);
+          if (!stageIntro()) restoreFocus();
+        }
       }
     };
     effect((onCleanup) => {
@@ -466,7 +513,8 @@ export const SmbPage = definePage({
       restoreFocus();
     };
     return {
-      options, scene, hud, score, coins, time, paused, ready, restarting, muted, soundNotice,
+      options, scene, hud, score, coins, time, paused, ready, restarting, pendingStart, startGame, muted, soundNotice,
+      canSaveAndExit, savingExit, exitNotice, saveAndExit,
       saveReady, storageNotice, mappedControls, rightKeys, resumeLevel, levelChoices, keyboardOpen, bindingNotice, toggleKeyboard, captureKey, activePreset, applyPreset, releaseKeys,
       issue, finished, dying, gameOver, waitingForRetry, cleared, onReady, onError, onKey, pause, restart, toggleSound, classicLogo, classicMenuBackground,
       hudCoin, hudMario, started, stageIntro, titlePanel, startingLevelId, startingLives, showTitlePanel, selectLevel, adjustLives, assetsReady, load, expanded, enlarged, toggleFullscreen, introOpen, toggleIntro, level, nextLevelId,

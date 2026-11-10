@@ -26,6 +26,8 @@
 }
 .play-nav { display: grid; align-content: start; gap: .25rem; font-size: .88rem; }
 .play-nav h2 { margin: 0 0 .25rem; padding: .2rem .45rem; font-size: .78rem; color: var(--muted); }
+.exit-link { padding: .4rem .5rem; border: 0; background: transparent; text-align: left; font-weight: 700; }
+.exit-link:hover { color: var(--accent); text-decoration: underline; }
 .current-level { padding: .44rem .55rem; border-radius: 5px; background: var(--mint); font: 750 .8rem var(--mono); }
 .current-level::before { display: inline-block; width: .43rem; height: .43rem; margin-right: .45rem; background: var(--accent); content: ""; }
 .info-toggle { display: none; }
@@ -72,6 +74,7 @@ game-canvas { display: block; position: absolute; inset: 0; width: 100%; height:
   z-index: 3;
   bottom: .6rem;
   right: .6rem;
+  max-width: calc(100% - 1.2rem);
   display: flex;
   flex-wrap: wrap;
   justify-content: end;
