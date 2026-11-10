@@ -8,13 +8,20 @@ export interface Spawn {
   region: string;
   x: number;
   feet: number;
+  airborne?: boolean;
 }
 
 export interface Tile extends Box {
   kind: 'ground' | 'brick' | 'stone' | 'question' | 'used' | 'pipe' | 'lift';
-  item?: 'coin' | 'mushroom' | 'flower';
+  item?: 'coin' | 'mushroom' | 'flower' | 'star' | 'one-up';
+  art?: number;
+  hidden?: boolean;
+  bumpAt?: number;
+  coinUntil?: number;
+  multiCoin?: boolean;
   warp?: Spawn;
-  lift?: { top: number; bottom: number; period: number; offset: number };
+  warpDirection?: 'right';
+  lift?: { top: number; bottom: number; period: number; offset: number; direction?: 1 | -1 };
   label?: string;
 }
 
@@ -27,10 +34,12 @@ export interface EnemySpawn {
 export interface Region {
   theme: 'surface' | 'underground';
   backtrack?: boolean;
+  fixedCamera?: boolean;
   width: number;
   tiles: Tile[];
   spawns: EnemySpawn[];
   coins: Box[];
+  background?: { x: number; y: number; art: number }[];
   signs?: { x: number; y: number; text: string }[];
 }
 

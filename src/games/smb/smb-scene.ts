@@ -1,15 +1,16 @@
 import { defineActions, defineGameScene } from '@xiaobaibaifqy/jingchuanchu-app/application';
-import { SmbSounds } from './assets/sounds.js';
+import { SmbMusic, SmbSounds } from './assets/sounds.js';
 import { captureSmbFrame, SmbFrame, type SmbPresentation } from './smb-frame.ts';
 import { SmbSession, type Hud } from './smb-session.ts';
 import type { Level } from './levels/level.ts';
 
+// The page maps physical keys into these engine actions through setVirtual().
 const actions = defineActions({
-  move: { kind: 'axis', negative: ['ArrowLeft', 'KeyA'], positive: ['ArrowRight', 'KeyD'], preventDefault: true },
-  jump: { kind: 'button', keys: ['Space', 'ArrowUp', 'KeyZ', 'KeyW'], preventDefault: true },
-  sprint: { kind: 'button', keys: ['ShiftLeft', 'ShiftRight', 'KeyX'], preventDefault: true },
-  down: { kind: 'button', keys: ['ArrowDown', 'KeyS'], preventDefault: true },
-  fire: { kind: 'button', keys: ['KeyX', 'KeyC'], preventDefault: true },
+  move: { kind: 'axis', negative: [], positive: [] },
+  jump: { kind: 'button' },
+  sprint: { kind: 'button' },
+  down: { kind: 'button' },
+  fire: { kind: 'button' },
 });
 
 export function createSmbScene(initial: () => { carry: Hud; level: Level }, publish: (hud: Hud) => void, started: () => boolean) {
@@ -34,6 +35,32 @@ export function createSmbScene(initial: () => { carry: Hud; level: Level }, publ
       });
 
       let last: Hud | undefined;
+      let track: 'overworld' | 'underground' | 'superstar' | undefined;
+      let stopMusic: (() => void) | undefined;
+      let musicRequest = 0;
+      const syncMusic = () => {
+        const next = run.hud.phase !== 'playing' || context.audio.state() !== 'ready' || context.audio.preferences().muted
+          ? undefined : run.starTime > 0 ? 'superstar' : run.area.theme === 'surface' ? 'overworld' : 'underground';
+        if (next === track) return;
+        track = next;
+        const request = ++musicRequest;
+        stopMusic?.();
+        stopMusic = undefined;
+        if (!next) return;
+        void context.audio.playMusic(SmbMusic, next, { loop: true }).then((result) => {
+          if (result.status !== 'played') {
+            if (request === musicRequest && (result.status === 'cancelled' ||
+                (result.status === 'blocked' && result.reason === 'suspended'))) track = undefined;
+            return;
+          }
+          if (request !== musicRequest) result.playback.stop();
+          else stopMusic = () => result.playback.stop();
+        });
+      };
+      context.scope.own(() => {
+        musicRequest++;
+        stopMusic?.();
+      });
       context.addSystem({
         id: 'smb-fixed-update',
         update({ delta }) {
@@ -44,9 +71,10 @@ export function createSmbScene(initial: () => { carry: Hud; level: Level }, publ
           const power = run.power;
           run.step(delta, {
             direction: move, sprint: sprint.down, jump: jump.down, jumpPressed: jump.pressed,
-            downPressed: down.pressed, firePressed: fire.pressed,
+            down: down.down, downPressed: down.pressed, firePressed: fire.pressed,
           });
           if (power !== run.power) frame.powerChange = { from: power, at: run.elapsed };
+          syncMusic();
           const next = run.hud;
           if (!last || next.time !== last.time || next.coins !== last.coins ||
               next.score !== last.score || next.lives !== last.lives || next.phase !== last.phase || next.power !== last.power) {

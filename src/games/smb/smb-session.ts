@@ -4,11 +4,12 @@ import { moveBody, overlaps } from './rules/collision.ts';
 import type { Body } from './rules/collision.ts';
 
 export type Power = 'small' | 'big' | 'fire';
-export type Phase = 'playing' | 'flag' | 'castle' | 'cleared' | 'dying' | 'lost';
-export type Sound = 'jump' | 'coin' | 'stomp' | 'power' | 'bump' | 'warp' | 'lose' | 'clear' | 'fire';
+export type Phase = 'playing' | 'flag' | 'flag-dismount' | 'castle' | 'countdown' | 'fireworks' | 'cleared' | 'dying' | 'lost';
+export type Sound = 'jump' | 'coin' | 'stomp' | 'power' | 'bump' | 'warp' | 'lose' | 'clear' | 'fire' | 'timer' | 'firework';
 type Enemy = Body & { kind: EnemySpawn['kind'] | 'shell'; dead: boolean; active: boolean; kickGrace: number; pipeTop: number };
-type Pickup = Body & { kind: 'mushroom' | 'flower'; emergence: number; blockTop: number };
+type Pickup = Body & { kind: Exclude<NonNullable<Tile['item']>, 'coin'>; emergence: number; blockTop: number };
 type Fireball = Body & { life: number };
+type Effect = { kind: 'coin' | 'spark' | 'brick' | 'points' | 'firework'; x: number; y: number; at: number; text?: string };
 
 export interface Input {
   direction: number;
@@ -16,6 +17,7 @@ export interface Input {
   jump: boolean;
   jumpPressed: boolean;
   downPressed: boolean;
+  down: boolean;
   firePressed: boolean;
 }
 
@@ -32,6 +34,9 @@ export interface Hud {
 export const InitialHud: Hud = { score: 0, coins: 0, lives: 3, time: 400, phase: 'playing', failure: '', power: 'small' };
 
 export const SIMULATION_HZ = 60;
+// The NES land collision probes share a foot at $20, with heads at $12/$04.
+export const SMALL_MARIO_HEIGHT = 0x20 - 0x12;
+export const BIG_MARIO_HEIGHT = 0x20 - 0x04;
 // NES horizontal speed uses 1/16 px per frame, vertical force 1/256 px per frame².
 const X_SPEED_UNIT = SIMULATION_HZ / 16;
 const X_FORCE_UNIT = SIMULATION_HZ ** 2 / 4096;
@@ -44,6 +49,12 @@ const MAX_FALL_SPEED = 4 * SIMULATION_HZ;
 const JUMP_BUFFER = 0.1;
 const COYOTE_TIME = 0.065;
 const RESIZE_SPEED = 95;
+const TRANSFORM_TIME = 0.45;
+export const EFFECT_TIME = 0.58;
+const FLAG_BASE = GROUND_Y - 16;
+const CASTLE_FLAG_TOP = 114;
+const FLAG_SCORE = [[0x90, 100], [0x68, 400], [0x50, 800], [0x22, 2000]] as const;
+const FIREWORK_POSITIONS = [[-48, 96], [0, 64], [48, 112], [48, 64], [-48, 96], [-16, 48]] as const;
 const SHELL_SPEED = 170;
 // Gold872's 2x renderer uses -12.5 scaled pixels per tick and a 180-tick delay.
 const DEATH_LAUNCH = -12.5 * SIMULATION_HZ / 2;
@@ -58,6 +69,7 @@ export class SmbSession {
   readonly actors: Record<string, Enemy[]>;
   readonly items: Record<string, Pickup[]>;
   readonly shots: Fireball[] = [];
+  effects: Effect[] = [];
   readonly hud: Hud;
   region: string;
   power: Power;
@@ -68,7 +80,11 @@ export class SmbSession {
   camera = 0;
   elapsed = 0;
   invulnerable = 0;
-  flagY = 53;
+  transformTime = 0;
+  starTime = 0;
+  crouching = false;
+  flagY = 48;
+  castleFlagY = 154;
   visualHeight: number;
   private remaining: number;
   private fireCooldown = 0;
@@ -78,7 +94,12 @@ export class SmbSession {
   private riseForce = 0x20;
   private fallForce = DEFAULT_FALL_FORCE;
   private holdingJump = false;
+  private runFriction = false;
   private deathRemaining = 0;
+  private flagScore = 0;
+  private celebrationDelay = 0;
+  private fireworksTotal = 0;
+  private fireworksLeft = 0;
 
   private readonly sound: (key: Sound) => void;
 
@@ -91,7 +112,7 @@ export class SmbSession {
     this.level = level;
     this.power = carry.power ?? 'small';
     this.region = level.start.region;
-    const h = this.power === 'small' ? 15 : 26;
+    const h = this.power === 'small' ? SMALL_MARIO_HEIGHT : BIG_MARIO_HEIGHT;
     this.player = { x: level.start.x, y: level.start.feet - h, w: 12, h, vx: 0, vy: 0, grounded: true };
     this.visualHeight = h;
     this.remaining = level.time;
@@ -121,6 +142,11 @@ export class SmbSession {
       return;
     }
     this.elapsed += dt;
+    if (this.effects.length) this.effects = this.effects.filter((effect) => this.elapsed - effect.at < EFFECT_TIME);
+    if (this.transformTime > 0) {
+      this.transformTime = Math.max(0, this.transformTime - dt);
+      return;
+    }
     const resizeStep = RESIZE_SPEED * dt;
     this.visualHeight += clamp(this.player.h - this.visualHeight, -resizeStep, resizeStep);
     if (this.hud.phase !== 'playing') {
@@ -134,10 +160,12 @@ export class SmbSession {
       return;
     }
     this.invulnerable = Math.max(0, this.invulnerable - dt);
+    this.starTime = Math.max(0, this.starTime - dt);
     this.fireCooldown = Math.max(0, this.fireCooldown - dt);
     const { player } = this;
     const tiles = this.area.tiles;
-    this.resizePlayer(tiles);
+    this.resizePlayer(tiles, input.down && (player.grounded || this.crouching));
+    this.crouching = this.power !== 'small' && player.h === SMALL_MARIO_HEIGHT;
     this.updateLifts(tiles);
     this.jumpBuffer = input.jumpPressed ? JUMP_BUFFER : Math.max(0, this.jumpBuffer - dt);
     this.coyoteTime = player.grounded ? COYOTE_TIME : Math.max(0, this.coyoteTime - dt);
@@ -159,12 +187,17 @@ export class SmbSession {
     this.holdingJump &&= input.jump && player.vy < 0;
     const rising = player.vy < 0 && (this.holdingJump || this.jumpOrigin - player.y < 1);
     const gravity = (rising ? this.riseForce : this.fallForce) * Y_FORCE_UNIT;
-    player.vy = Math.min(MAX_FALL_SPEED, player.vy + gravity * dt);
+    const nextVy = Math.min(MAX_FALL_SPEED, player.vy + gravity * dt);
+    // Keep a downward support probe on the ground; airborne displacement uses
+    // the current velocity, as the NES integrator applies gravity after moving.
+    if (player.grounded && player.vy === 0) player.vy = nextVy;
     const falling = player.vy > 0;
     const contact = moveBody(player, tiles, dt);
     if (contact.floor) {
       this.fallForce = DEFAULT_FALL_FORCE;
       this.jumpOrigin = Infinity;
+    } else if (!contact.ceiling) {
+      player.vy = nextVy;
     }
     player.x = clamp(player.x, 0, this.area.width - player.w);
     if (contact.ceiling) this.hitBlock(contact.ceiling);
@@ -173,7 +206,11 @@ export class SmbSession {
       return;
     }
 
-    if (input.downPressed && contact.floor?.warp) {
+    if (input.direction > 0 && contact.wall?.warpDirection === 'right' && contact.wall.warp) {
+      this.warp(contact.wall.warp);
+      return;
+    }
+    if (input.downPressed && contact.floor?.warp && !contact.floor.warpDirection) {
       const pipe = contact.floor;
       const center = player.x + player.w / 2;
       if (center >= pipe.x + 4 && center <= pipe.x + pipe.w - 4) {
@@ -183,13 +220,13 @@ export class SmbSession {
     }
     this.updateCamera();
     this.updatePickups(dt, tiles);
+    if (this.transformTime > 0) return;
     if (this.updateEnemies(dt, tiles, oldBottom, falling)) return;
     this.updateFireballs(dt, tiles);
     const { region, flag } = this.level.finish;
-    if (this.region === region && player.x + player.w >= flag && player.x < flag + 12) {
-      this.hud.phase = 'flag';
-      this.hud.score += Math.max(100, Math.round((GROUND_Y - player.y) / 16) * 100);
-      this.sound('clear');
+    if (this.region === region && player.x + player.w >= flag && player.x < flag + 12 &&
+        player.y < FLAG_BASE && player.y + player.h > 32) {
+      this.startFlag();
     }
     this.hud.power = this.power;
   }
@@ -198,12 +235,12 @@ export class SmbSession {
     const p = this.player;
     for (const tile of tiles) {
       if (!tile.lift) continue;
-      const { top, bottom, period, offset } = tile.lift;
+      const { top, bottom, period, offset, direction } = tile.lift;
       const cycle = (this.elapsed + offset) % period / period;
-      const next = top + (bottom - top) * (1 - Math.abs(2 * cycle - 1));
+      const next = top + (bottom - top) * (direction === 1 ? cycle : direction === -1 ? 1 - cycle : 1 - Math.abs(2 * cycle - 1));
       const feet = p.y + p.h;
       const above = p.x < tile.x + tile.w && p.x + p.w > tile.x && feet <= tile.y;
-      if (above && ((p.grounded && tile.y - feet < .001) || (p.vy >= 0 && feet >= next))) {
+      if (Math.abs(next - tile.y) < (bottom - top) / 2 && above && ((p.grounded && tile.y - feet < .001) || (p.vy >= 0 && feet >= next))) {
         p.y = next - p.h;
         p.vy = 0;
         p.grounded = true;
@@ -214,10 +251,21 @@ export class SmbSession {
 
   private updateHorizontalVelocity(dt: number, { direction, sprint }: Input) {
     const p = this.player;
-    if (!direction && !p.grounded) return;
-    if (direction && p.grounded) this.facing = Math.sign(direction);
     const speed = Math.abs(p.vx);
     const reversing = direction !== 0 && direction * p.vx < 0;
+    if (p.grounded) {
+      // NES RunningSpeed survives release of the direction buttons, so the
+      // running brake applies throughout the coast instead of becoming weaker.
+      if (speed >= 0x1c * X_SPEED_UNIT) this.runFriction = true;
+      else if (direction && !reversing) this.runFriction = false;
+      if (!direction) {
+        const force = this.runFriction ? 0xd0 : 0x98;
+        const brake = force * X_FORCE_UNIT * dt;
+        p.vx = sprint && speed < 0x0b * X_SPEED_UNIT ? 0 : p.vx + clamp(-p.vx, -brake, brake);
+        return;
+      }
+      this.facing = Math.sign(direction);
+    } else if (!direction) return;
     const fast = sprint || speed >= WALK_SPEED + X_SPEED_UNIT;
     const limit = p.grounded ? (sprint ? RUN_SPEED : WALK_SPEED)
       : Math.max(WALK_SPEED, speed);
@@ -228,41 +276,56 @@ export class SmbSession {
     p.vx += clamp(target - p.vx, -step, step);
   }
 
-  private resizePlayer(tiles: Tile[]) {
+  private resizePlayer(tiles: Tile[], crouch = false) {
     const { player } = this;
-    const height = this.power === 'small' ? 15 : 26;
+    const height = this.power === 'small' || crouch ? SMALL_MARIO_HEIGHT : BIG_MARIO_HEIGHT;
     if (height === player.h) return;
     const candidate = { x: player.x, y: player.y + player.h - height, w: player.w, h: height };
-    if (height < player.h || !tiles.some((tile) => overlaps(candidate, tile))) {
+    if (height < player.h || !tiles.some((tile) => !tile.hidden && overlaps(candidate, tile))) {
       player.y = candidate.y;
       player.h = height;
     }
   }
 
   private hitBlock(tile: Tile) {
-    if (tile.kind === 'question') {
-      tile.kind = 'used';
-      if (tile.item === 'coin') this.collectCoin();
-      else if (tile.item) {
-        const kind = tile.item === 'flower' && this.power !== 'small' ? 'flower' : 'mushroom';
+    if (tile.kind === 'question' || tile.multiCoin) {
+      const multi = tile.multiCoin;
+      tile.hidden = false;
+      tile.bumpAt = this.elapsed;
+      if (multi) tile.coinUntil ??= this.elapsed + 4;
+      if (!multi || this.elapsed >= tile.coinUntil!) {
+        tile.kind = 'used';
+        tile.multiCoin = false;
+      }
+      if (multi || tile.item === 'coin') {
+        this.collectCoin(tile.x + 8, tile.y, true);
+      } else if (tile.item) {
+        const kind = tile.item === 'mushroom' && this.power !== 'small' ? 'flower' : tile.item;
         this.pickups.push({
           x: tile.x + 1, y: tile.y - 1, w: 14, h: 14, kind, emergence: 0.28, blockTop: tile.y,
-          vx: kind === 'mushroom' ? 48 : 0, vy: 0, grounded: false,
+          vx: kind === 'flower' ? 0 : 48, vy: 0, grounded: false,
         });
         this.sound('bump');
       }
     } else if (tile.kind === 'brick' && this.power !== 'small') {
       const tiles = this.area.tiles;
       tiles.splice(tiles.indexOf(tile), 1);
+      this.player.vy = -2 * SIMULATION_HZ;
       this.hud.score += 50;
+      this.effects.push({ kind: 'brick', x: tile.x + 8, y: tile.y + 8, at: this.elapsed });
       this.sound('bump');
-    } else this.sound('bump');
+    } else {
+      if (tile.kind === 'brick' || tile.kind === 'used') tile.bumpAt = this.elapsed;
+      else this.player.vy = SIMULATION_HZ;
+      this.sound('bump');
+    }
   }
 
-  private collectCoin() {
+  private collectCoin(x: number, y: number, launched = false) {
     this.hud.coins++;
     this.hud.score += 100;
     if (this.hud.coins % 100 === 0) this.hud.lives++;
+    this.effects.push({ kind: launched ? 'coin' : 'spark', x, y, at: this.elapsed });
     this.sound('coin');
   }
 
@@ -271,7 +334,7 @@ export class SmbSession {
     const region = this.area;
     region.coins = region.coins.filter((coin) => {
       if (!overlaps(player, coin)) return true;
-      this.collectCoin();
+      this.collectCoin(coin.x + coin.w / 2, coin.y);
       return false;
     });
     this.items[this.region] = this.pickups.filter((item) => {
@@ -280,19 +343,33 @@ export class SmbSession {
         item.y = item.blockTop - item.h + (item.h - 1) * item.emergence / 0.28;
         return true;
       }
-      if (item.kind === 'mushroom') {
+      if (item.kind !== 'flower') {
         const vx = item.vx;
         item.vy = Math.min(320, item.vy + ENTITY_GRAVITY * dt);
-        if (moveBody(item, tiles, dt).wall || item.x < 0 || item.x + item.w > region.width) {
+        const contact = moveBody(item, tiles, dt);
+        if (item.kind === 'star' && contact.floor) item.vy = -230;
+        if (contact.wall || item.x < 0 || item.x + item.w > region.width) {
           item.x = clamp(item.x, 0, region.width - item.w);
           item.vx = -vx;
         }
       }
       if (overlaps(player, item)) {
-        if (item.kind === 'flower') this.power = 'fire';
-        else if (this.power === 'small') this.power = 'big';
-        this.resizePlayer(tiles);
-        this.hud.score += 1000;
+        const before = this.power;
+        if (item.kind === 'one-up') this.hud.lives++;
+        else {
+          if (item.kind === 'star') this.starTime = 10;
+          else if (item.kind === 'flower') this.power = 'fire';
+          else if (this.power === 'small') this.power = 'big';
+          this.hud.score += 1000;
+        }
+        if (before !== this.power) {
+          this.resizePlayer(tiles);
+          this.visualHeight = player.h;
+          this.hud.power = this.power;
+          this.transformTime = TRANSFORM_TIME;
+          this.invulnerable = Math.max(this.invulnerable, 0.25);
+        }
+        this.effects.push({ kind: 'points', x: item.x + 7, y: item.y, at: this.elapsed, text: item.kind === 'one-up' ? '1UP' : '1000' });
         this.sound('power');
         return false;
       }
@@ -340,6 +417,10 @@ export class SmbSession {
     }
     for (const enemy of enemies) {
       if (enemy.dead || !enemy.active || enemy.kickGrace > 0 || !overlaps(player, enemy)) continue;
+      if (this.starTime > 0) {
+        this.defeat(enemy);
+        continue;
+      }
       if (enemy.kind !== 'plant' && falling && oldBottom <= enemy.y + 3 && player.y < enemy.y) {
         player.y = enemy.y - player.h;
         player.vy = -205;
@@ -422,6 +503,9 @@ export class SmbSession {
   private warp(destination: Spawn) {
     this.region = destination.region;
     this.shots.length = 0;
+    this.effects.length = 0;
+    this.player.grounded = !destination.airborne;
+    this.crouching = false;
     this.player.x = destination.x;
     this.player.y = destination.feet - this.player.h;
     this.player.vx = this.player.vy = 0;
@@ -429,12 +513,14 @@ export class SmbSession {
     this.jumpOrigin = Infinity;
     this.fallForce = DEFAULT_FALL_FORCE;
     this.holdingJump = false;
+    this.runFriction = false;
     this.camera = 0;
     this.updateCamera();
     this.sound('warp');
   }
 
   private updateCamera() {
+    if (this.area.fixedCamera) return;
     const follow = this.player.x - 110;
     this.camera = clamp(this.area.backtrack ? follow : Math.max(this.camera, follow), 0, this.area.width - VIEW_WIDTH);
     this.player.x = Math.max(this.player.x, this.camera);
@@ -442,9 +528,10 @@ export class SmbSession {
 
   private lose(message: string) {
     const player = this.player;
+    this.starTime = this.transformTime = 0;
     this.power = this.hud.power = 'small';
-    player.y += player.h - 15;
-    player.h = this.visualHeight = 15;
+    player.y += player.h - SMALL_MARIO_HEIGHT;
+    player.h = this.visualHeight = SMALL_MARIO_HEIGHT;
     player.vx = 0;
     player.vy = DEATH_LAUNCH;
     player.grounded = false;
@@ -455,25 +542,89 @@ export class SmbSession {
     this.sound('lose');
   }
 
+  private startFlag() {
+    const player = this.player;
+    const feet = player.y + player.h;
+    // The NES measures both forms from the same 32-pixel sprite anchor.
+    this.flagScore = FLAG_SCORE.find(([top]) => feet - 32 >= top)?.[1] ?? 5000;
+    const digit = this.hud.time % 10;
+    this.fireworksTotal = this.fireworksLeft = digit === 1 || digit === 3 || digit === 6 ? digit : 0;
+    this.hud.phase = 'flag';
+    player.x = this.level.finish.flag - player.w;
+    player.vx = player.vy = 0;
+    player.grounded = false;
+    this.facing = 1;
+    this.crouching = false;
+    this.resizePlayer(this.area.tiles);
+    this.starTime = this.invulnerable = 0;
+    this.sound('clear');
+  }
+
   private finishFlag(dt: number) {
     const { player } = this;
     const { flag, castle } = this.level.finish;
-    if (this.hud.phase === 'flag') {
-      player.x = flag - player.w;
-      player.y = Math.min(GROUND_Y - player.h, player.y + 118 * dt);
-      this.flagY = Math.min(179, this.flagY + 118 * dt);
-      if (player.y >= GROUND_Y - player.h) {
-        player.grounded = true;
-        this.hud.phase = 'castle';
+    switch (this.hud.phase) {
+      case 'flag': {
+        const base = FLAG_BASE - player.h;
+        player.y = Math.min(base, player.y + 120 * dt);
+        this.flagY = Math.min(176, this.flagY + 120 * dt);
+        if (player.y === base && this.flagY === 176) {
+          this.hud.score += this.flagScore;
+          this.effects.push({ kind: 'points', x: flag + 12, y: 160, at: this.elapsed, text: String(this.flagScore) });
+          player.x = flag + 2;
+          this.facing = -1;
+          this.celebrationDelay = .35;
+          this.hud.phase = 'flag-dismount';
+        }
+        break;
       }
-    } else {
-      player.x = Math.min(castle + 30, player.x + 110 * dt);
-      player.vx = 110;
-      this.updateCamera();
-      if (player.x === castle + 30) {
-        this.hud.score += this.hud.time * 10;
-        this.hud.phase = 'cleared';
+      case 'flag-dismount':
+        this.celebrationDelay -= dt;
+        if (this.celebrationDelay <= 0) {
+          this.facing = 1;
+          this.hud.phase = 'castle';
+        }
+        break;
+      case 'castle': {
+        player.x = Math.min(castle + 30, player.x + 95 * dt);
+        const ground = player.x < flag + 16 ? FLAG_BASE : GROUND_Y;
+        player.vy = Math.min(MAX_FALL_SPEED, player.vy + DEFAULT_FALL_FORCE * Y_FORCE_UNIT * dt);
+        player.y = Math.min(ground - player.h, player.y + player.vy * dt);
+        player.grounded = player.y + player.h >= ground;
+        if (player.grounded) player.vy = 0;
+        player.vx = 95;
+        this.updateCamera();
+        if (player.x === castle + 30) this.hud.phase = 'countdown';
+        break;
       }
+      case 'countdown':
+        if (this.hud.time > 0) {
+          this.hud.time--;
+          this.hud.score += 50;
+          if (this.hud.time % 8 === 0) this.sound('timer');
+        }
+        if (this.hud.time === 0) {
+          this.celebrationDelay = this.fireworksLeft > 0 ? 0 : .45;
+          this.hud.phase = 'fireworks';
+        }
+        break;
+      case 'fireworks':
+        if (this.castleFlagY > CASTLE_FLAG_TOP) {
+          this.castleFlagY = Math.max(CASTLE_FLAG_TOP, this.castleFlagY - 60 * dt);
+          break;
+        }
+        this.celebrationDelay -= dt;
+        if (this.celebrationDelay > 0) break;
+        if (this.fireworksLeft === 0) {
+          this.hud.phase = 'cleared';
+          break;
+        }
+        const [x, y] = FIREWORK_POSITIONS[--this.fireworksLeft + 6 - this.fireworksTotal]!;
+        this.effects.push({ kind: 'firework', x: castle + 24 + x, y, at: this.elapsed });
+        this.hud.score += 500;
+        this.sound('firework');
+        this.celebrationDelay = this.fireworksLeft > 0 ? 32 / SIMULATION_HZ : EFFECT_TIME;
+        break;
     }
   }
 }

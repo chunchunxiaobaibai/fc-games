@@ -1,4 +1,4 @@
-<main class="play" @keydown="onKey($event)">
+<main class="play" @keydown="onKey($event)" @focusout="releaseKeys()">
   <header class="play-header">
     <span class="play-brand"><span aria-hidden="true">✚</span> FC GAMES</span>
     <div>
@@ -19,55 +19,100 @@
           <template when="assetsReady">
             <game-canvas :scene="scene" :options="options" @ready="onReady($event)" @error="onError($event)"></game-canvas>
           </template>
-          <div class="hud" aria-label="本局状态">
-            <div aria-label="分数"><span>MARIO</span><strong data-stat="score">{{ score }}</strong></div>
-            <div class="hud-coins" aria-label="金币"><img :src="hudCoin" alt=""><strong data-stat="coins">×{{ coins }}</strong></div>
-            <div aria-label="世界"><span>WORLD</span><strong>{{ level.id }}</strong></div>
-            <div aria-label="时间"><span>TIME</span><strong data-stat="time">{{ time }}</strong></div>
-          </div>
+          <template when="started && !gameOver">
+            <div class="hud" aria-label="本局状态">
+              <div aria-label="分数"><span>MARIO</span><strong data-stat="score">{{ score }}</strong></div>
+              <div class="hud-coins" aria-label="金币"><img :src="hudCoin" alt=""><strong data-stat="coins">×{{ coins }}</strong></div>
+              <div aria-label="世界"><span>WORLD</span><strong>{{ level.id }}</strong></div>
+              <div aria-label="时间"><span>TIME</span><strong data-stat="time">{{ time }}</strong></div>
+            </div>
+          </template>
           <div class="screen-tools" aria-label="画面操作">
-            <template when="started && !dying && !finished && !paused && !issue">
+            <template when="started && !stageIntro && !dying && !finished && !paused && !issue">
               <button type="button" @click="pause()">暂停</button>
             </template>
+            <button type="button" class="keyboard-toggle" :disabled="!saveReady" @click="toggleKeyboard()">键位设置</button>
             <button type="button" @click="toggleSound()">{{ muted ? '开启声音' : '静音' }}</button>
             <button type="button" @click="toggleFullscreen()">{{ enlarged ? '退出全屏' : '全屏' }}</button>
           </div>
           <p class="sound-notice" role="status">{{ soundNotice }}</p>
 
-          <template when="!ready && !issue"><div class="overlay"><p role="status">正在加载关卡…</p></div></template>
-          <template when="ready && !started && !issue">
-            <div class="overlay intro-screen">
-              <div class="menu">
+          <template when="(!ready || !saveReady) && !issue"><div class="overlay"><p role="status">正在加载关卡…</p></div></template>
+          <template when="ready && saveReady && !started && !issue">
+            <div class="overlay title-screen">
+              <img class="title-backdrop" :src="classicMenuBackground" alt="">
+              <div class="title-menu">
                 <img class="game-logo" :src="classicLogo" alt="Super Mario Bros.">
-                <button type="button" class="menu-choice" @click="start()"><span aria-hidden="true">▶</span> 开始游戏</button>
-                <p class="world-label">WORLD {{ level.id }}</p>
+                <template when="titlePanel === 'menu'">
+                  <div class="title-actions" aria-label="标题菜单">
+                    <template when="resumeLevel !== ''">
+                      <button type="button" :aria-label="'继续存档 ' + resumeLevel" :disabled="restarting" @click="restart('resume')">CONTINUE · {{ resumeLevel }}</button>
+                    </template>
+                    <button type="button" aria-label="开始游戏" :disabled="restarting" @click="restart('start')">{{ resumeLevel !== '' ? 'NEW GAME' : 'START GAME' }}</button>
+                    <button type="button" aria-label="选择关卡" :disabled="restarting" @click="showTitlePanel('levels')">LEVEL SELECT</button>
+                    <button type="button" aria-label="游戏设置" :disabled="restarting" @click="showTitlePanel('options')">OPTIONS</button>
+                  </div>
+                  <p class="title-selection">WORLD {{ startingLevelId }} <span aria-label="开局生命数">× {{ startingLives }}</span></p>
+                </template>
+                <template when="titlePanel === 'levels'">
+                  <div class="title-panel">
+                    <h2>选择关卡</h2>
+                    <div class="title-actions" aria-label="可选关卡">
+                      <template each="choice of levelChoices" key="choice.id">
+                        <button type="button" :aria-label="'WORLD ' + choice.id" :aria-pressed="startingLevelId === choice.id" @click="selectLevel(choice.index)">WORLD {{ choice.id }}<template when="choice.completed"><span class="level-completed"> · 已通关</span></template></button>
+                      </template>
+                      <button type="button" aria-label="返回" @click="showTitlePanel('menu')">返回</button>
+                    </div>
+                  </div>
+                </template>
+                <template when="titlePanel === 'options'">
+                  <div class="title-panel">
+                    <h2>开局生命数</h2>
+                    <div class="life-settings">
+                      <button type="button" aria-label="减少开局生命" :disabled="startingLives <= 1" @click="adjustLives(-1)">−</button>
+                      <output aria-label="开局生命数">{{ startingLives }}</output>
+                      <button type="button" aria-label="增加开局生命" :disabled="startingLives >= 9" @click="adjustLives(1)">+</button>
+                    </div>
+                    <div class="title-actions"><button type="button" aria-label="返回" @click="showTitlePanel('menu')">返回</button></div>
+                  </div>
+                </template>
               </div>
             </div>
           </template>
-          <template when="paused && !finished && !issue">
+          <template when="(stageIntro || waitingForRetry) && !issue">
+            <div class="overlay stage-intro" role="status">
+              <div>
+                <p>WORLD {{ level.id }}</p>
+                <p class="life-display" aria-label="剩余生命"><img :src="hudMario" alt=""><strong data-stat="lives">× {{ hud.lives }}</strong></p>
+              </div>
+            </div>
+          </template>
+          <template when="paused && !stageIntro && !finished && !issue">
             <div class="overlay">
               <div class="menu">
                 <p class="world-label">PAUSED · WORLD {{ level.id }}</p>
                 <h2>游戏已暂停</h2>
-                <p>生命 <strong data-stat="lives">{{ hud.lives }}</strong></p>
+                <p class="life-display" aria-label="剩余生命"><img :src="hudMario" alt=""> × <strong data-stat="lives">{{ hud.lives }}</strong></p>
                 <button type="button" class="menu-choice" :disabled="restarting" @click="pause()">继续游戏</button>
                 <button type="button" class="menu-choice" :disabled="restarting" @click="restart('new')">重新开局</button>
               </div>
             </div>
           </template>
-          <template when="finished && !issue">
+          <template when="gameOver && !issue">
+            <div class="overlay game-over" role="status">
+              <h2 aria-label="游戏结束">GAME OVER</h2>
+            </div>
+          </template>
+          <template when="cleared && nextLevelId === '' && !issue">
             <div class="overlay result-screen">
               <div class="menu">
                 <div role="status">
-                  <p class="world-label">WORLD {{ level.id }} / {{ hud.phase === 'cleared' ? 'CLEAR' : 'RESULT' }}</p>
-                  <h2>{{ result }}</h2>
+                  <p class="world-label">WORLD {{ level.id }} / CLEAR</p>
+                  <h2>关卡完成！</h2>
                   <p>分数 {{ score }} · 金币 {{ coins }} · 生命 <strong data-stat="lives">{{ hud.lives }}</strong></p>
                 </div>
-                <template when="hud.phase === 'cleared' && nextLevelId !== ''">
-                  <button type="button" class="menu-choice" :disabled="restarting" @click="restart('next')">下一关 · {{ nextLevelId }}</button>
-                </template>
-                <template when="hud.phase === 'cleared' && !nextLevelId"><p>World 1-3 尚未开放</p></template>
-                <button type="button" class="menu-choice" :disabled="restarting" @click="restart(hud.phase === 'lost' ? 'retry' : 'new')">{{ hud.phase === 'lost' && hud.lives > 0 ? '再试一次' : '重新开局' }}</button>
+                <p>World 1-3 尚未开放</p>
+                <button type="button" class="menu-choice" :disabled="restarting" @click="restart('new')">重新开局</button>
                 <route-link :to="{ name: 'lobby' }"><template slot="default">返回大厅</template></route-link>
               </div>
             </div>
@@ -77,9 +122,39 @@
               <div class="menu">
                 <p role="alert">{{ issue }}</p>
                 <template when="!assetsReady"><button type="button" class="menu-choice" @click="load()">重试</button></template>
-                <template when="ready"><button type="button" class="menu-choice" :disabled="restarting" @click="restart('new')">重试</button></template>
+                <template when="ready"><button type="button" class="menu-choice" :disabled="restarting" @click="restart(waitingForRetry ? 'retry' : cleared && nextLevelId !== '' ? 'next' : started ? 'new' : 'start')">重试</button></template>
                 <route-link :to="{ name: 'lobby' }"><template slot="default">返回大厅</template></route-link>
               </div>
+            </div>
+          </template>
+          <template when="keyboardOpen">
+            <div class="overlay keyboard-overlay">
+              <section class="keyboard-dialog" role="dialog" aria-modal="true" aria-labelledby="smb-keyboard-title">
+                <h2 id="smb-keyboard-title">键位设置</h2>
+                <div class="keyboard-grid">
+                  <template each="control of mappedControls" key="control.id">
+                    <div class="keyboard-action">
+                      <span>{{ control.label }}</span>
+                      <div class="keyboard-slots">
+                        <button type="button" :aria-label="'更改' + control.label + '主键'" :aria-pressed="control.editingPrimary" @click="captureKey(control.id, 'primary')">
+                          <span>主</span><kbd>{{ control.editingPrimary ? '…' : control.primary }}</kbd>
+                        </button>
+                        <button type="button" :aria-label="'更改' + control.label + '备选键'" :aria-pressed="control.editingAlternate" @click="captureKey(control.id, 'alternate')">
+                          <span>备</span><kbd>{{ control.editingAlternate ? '…' : control.alternate }}</kbd>
+                          <template when="!control.editingAlternate && control.extraCount > 0"><small>+{{ control.extraCount }}</small></template>
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+                <p class="binding-notice" role="status">{{ bindingNotice }}</p>
+                <template when="storageNotice !== ''"><p class="binding-notice" role="status">{{ storageNotice }}</p></template>
+                <div class="keyboard-footer">
+                  <button type="button" :aria-pressed="activePreset === 'classic'" @click="applyPreset('classic')">经典方案</button>
+                  <button type="button" :aria-pressed="activePreset === 'wasd'" @click="applyPreset('wasd')">WASD 方案</button>
+                  <button type="button" @click="toggleKeyboard()">完成</button>
+                </div>
+              </section>
             </div>
           </template>
         </div>
@@ -91,14 +166,13 @@
       </div>
       <p><strong>{{ level.title }}</strong> · {{ level.summary }}</p>
       <dl class="controls" aria-label="键盘操作">
-        <div><dt>移动</dt><dd><kbd>←</kbd> <kbd>→</kbd></dd></div>
-        <div><dt>跳跃</dt><dd><kbd>Space</kbd> <kbd>Z</kbd></dd></div>
-        <div><dt>助跑</dt><dd><kbd>Shift</kbd> <kbd>X</kbd></dd></div>
-        <div><dt>进管道</dt><dd><kbd>↓</kbd></dd></div>
-        <div><dt>火球</dt><dd><kbd>C</kbd> <kbd>X</kbd></dd></div>
-        <div><dt>暂停</dt><dd><kbd>Esc</kbd></dd></div>
+        <template each="control of mappedControls" key="control.id">
+          <div><dt>{{ control.label }}</dt><dd class="mapped-keys"><template each="key of control.keys" key="key.code"><kbd>{{ key.label }}</kbd></template></dd></div>
+        </template>
+        <div><dt>进横管</dt><dd class="mapped-keys"><template each="key of rightKeys" key="key.code"><kbd>{{ key.label }}</kbd></template></dd></div>
       </dl>
       <p class="info-tip">先助跑再跳，可以跳得更高、更远。</p>
+      <template when="storageNotice !== ''"><p role="status">{{ storageNotice }}</p></template>
     </aside>
   </div>
 </main>

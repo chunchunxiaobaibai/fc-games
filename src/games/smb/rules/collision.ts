@@ -12,7 +12,7 @@ export function overlaps(a: Box, b: Box): boolean {
 }
 
 /** Sweep one axis at a time so a step resolves against the first surface reached. */
-export function moveBody<T extends Box>(body: Body, solids: readonly T[], dt: number) {
+export function moveBody<T extends Box & { hidden?: boolean }>(body: Body, solids: readonly T[], dt: number) {
   const startX = body.x;
   const startY = body.y;
   const dx = body.vx * dt;
@@ -24,6 +24,7 @@ export function moveBody<T extends Box>(body: Body, solids: readonly T[], dt: nu
   let ceiling: T | undefined;
 
   for (const tile of solids) {
+    if (tile.hidden) continue;
     if (startY >= tile.y + tile.h || startY + body.h <= tile.y) continue;
     if (dx > 0 && startX + body.w <= tile.x && x + body.w >= tile.x) {
       x = tile.x - body.w;
@@ -36,7 +37,7 @@ export function moveBody<T extends Box>(body: Body, solids: readonly T[], dt: nu
 
   for (const tile of solids) {
     if (x >= tile.x + tile.w || x + body.w <= tile.x) continue;
-    if (dy > 0 && startY + body.h <= tile.y && y + body.h >= tile.y) {
+    if (!tile.hidden && dy > 0 && startY + body.h <= tile.y && y + body.h >= tile.y) {
       y = tile.y - body.h;
       floor = tile;
     } else if (dy < 0 && startY >= tile.y + tile.h && y <= tile.y + tile.h) {

@@ -13,6 +13,7 @@ export function captureSmbFrame(state: SmbSession) {
     region: state.region,
     camera: state.camera,
     flagY: state.flagY,
+    castleFlagY: state.castleFlagY,
     elapsed: state.elapsed,
     playerX: state.player.x,
     feet: state.player.y + state.player.h,
@@ -37,6 +38,7 @@ export function interpolateSmbFrame({ state, previous, alpha }: SmbPresentation)
   return {
     camera: lerp(previous.camera, state.camera),
     flagY: lerp(previous.flagY, state.flagY),
+    castleFlagY: lerp(previous.castleFlagY, state.castleFlagY),
     elapsed: lerp(previous.elapsed, state.elapsed),
     playerX: lerp(previous.playerX, state.player.x),
     feet: lerp(previous.feet, state.player.y + state.player.h),

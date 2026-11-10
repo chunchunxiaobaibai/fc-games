@@ -11,7 +11,18 @@ export const SmbSounds = defineAssetGroup({
     bump: { kind: 'audio', url: new URL('./bump.wav', import.meta.url).href },
     warp: { kind: 'audio', url: new URL('./warp.wav', import.meta.url).href },
     lose: { kind: 'audio', url: new URL('./lose.wav', import.meta.url).href },
-    clear: { kind: 'audio', url: new URL('./clear.wav', import.meta.url).href },
+    clear: { kind: 'audio', url: new URL('./finish/flagraise.mp3', import.meta.url).href },
+    timer: { kind: 'audio', url: new URL('./finish/timertick.mp3', import.meta.url).href },
+    firework: { kind: 'audio', url: new URL('./finish/cannonfire.mp3', import.meta.url).href },
     fire: { kind: 'audio', url: new URL('./fire.wav', import.meta.url).href },
   } satisfies Record<Sound, { kind: 'audio'; url: string }>,
+});
+
+export const SmbMusic = defineAssetGroup({
+  name: 'smb-music',
+  entries: {
+    overworld: { kind: 'audio', url: new URL('./music/overworld.mp3', import.meta.url).href },
+    underground: { kind: 'audio', url: new URL('./music/underground.mp3', import.meta.url).href },
+    superstar: { kind: 'audio', url: new URL('./music/superstar.mp3', import.meta.url).href },
+  },
 });
